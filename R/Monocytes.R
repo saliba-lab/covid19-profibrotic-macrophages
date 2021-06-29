@@ -726,8 +726,10 @@ pheatmap::pheatmap(
   show_rownames        = FALSE,
   show_colnames        = FALSE, 
   annotation_names_col = FALSE,
-  gaps_col             = head(as.numeric(cumsum(table(cann$Cluster))), -1),
-  gaps_row             = head(as.numeric(cumsum(table(rann$Cluster))), -1), 
+  gaps_col             = head(as.numeric(cumsum(table(cann$Condition))), -1),
+  gaps_row             = head(as.numeric(
+    cumsum(table(rann$Cluster)[unique(rann$Cluster)])
+    ), -1), 
   cellwidth            = 0.4
 )
 
@@ -895,9 +897,6 @@ data$Geneset <- factor(
   data$Geneset, unique(data$Geneset)[c(4,2,10,8,7,3,11,1,5,6,9,12)]
 )
 
-max <- 0.5
-data$p.adjust[data$p.adjust > max] <- max
-
 cols <- c(
   "Morse et al."   = "seagreen",
   "Adams et al."   = "navy",
@@ -911,14 +910,11 @@ ggplot2::ggplot(
   mapping = ggplot2::aes(
     x    = Geneset,
     y    = Cluster,
-    size = overlap,
-    col = -log10(p.adjust)
+    fill = -log10(p.adjust)
   )
 ) +
-  ggplot2::geom_point() +
-  ggplot2::scale_color_distiller(
-    palette = "RdYlBu", direction = -1, trans = "log10"
-  ) +
+  ggplot2::geom_tile(color = "white", size = 1) +
+  ggplot2::scale_fill_gradient2(low = "white", high = "red") +
   ggplot2::scale_size_area(max_size = 12) +
   ggplot2::theme_classic(base_size = 20) +
   ggplot2::theme(
@@ -938,9 +934,9 @@ ggplot2::ggplot(
   ) +
   ggplot2::labs(x = NULL, y = NULL, size = "% overlap") +
   ggplot2::guides(
-    col = ggplot2::guide_colorbar(
-      barwidth = 10, barheight = 1, order = 1, title.vjust = 1,
-      frame.colour = "black", ticks.colour = "black",
+    fill = ggplot2::guide_colorbar(
+      barwidth = 34, barheight = 1, order = 1, title.vjust = 1,
+      frame.colour = "black", ticks = FALSE,
       title.position = "top", title.hjust = 0.5
     ),
     size = ggplot2::guide_legend(
@@ -950,7 +946,7 @@ ggplot2::ggplot(
   ggplot2::annotate(
     geom = "text",
     x = c(2,5,8,11),
-    y = c(0.25,0.25,0.25,0.25),
+    y = rep(0.1, 4),
     label = unique(names(ref.color)),
     color = unique(ref.color),
     size  = 6
