@@ -1,6 +1,11 @@
 ################################################################################
 # scRNA-seq analysis of stimulated monocytes
 
+# Set working directory to save output
+d <- "~/SARS-CoV-2-infection-triggers-profibrotic-macrophage-responses-and-lung-fibrosis"
+dir.create(d)
+setwd(d)
+
 # ------------------------------------------------------------------------------
 # Download data from public repository
 
@@ -348,6 +353,11 @@ color.condition <- c(
   "R848"       = cbPalette[6]
 )
 
+# Store colors in object
+object@misc$colors <- list(
+  condition = color.condition
+)
+
 # Select data
 data <- tidyr::as_tibble(object@reductions$umap@cell.embeddings)
 names(data) <- c("x", "y")
@@ -401,6 +411,11 @@ ggplot2::ggplot(
     )
   )
 
+# Save plot
+ggplot2::ggsave(
+  "Monocytes_Condition.png", width = 10, height = 6
+)
+
 # ------------------------------------------------------------------------------
 # Show SARS-CoV-2 counts
 
@@ -452,6 +467,11 @@ ggplot2::ggplot(
       angle  = 30, length = ggplot2::unit(0.2, "inches"), type   = "closed"
     )
   )
+
+# Save plot
+ggplot2::ggsave(
+  "Monocytes_viral-mRNAs.png", width = 10, height = 6
+)
 
 # ------------------------------------------------------------------------------
 # Show donors
@@ -513,9 +533,15 @@ ggplot2::ggplot(
     )
   )
 
+# Save plot
+ggplot2::ggsave(
+  "Monocytes_Donors.png", width = 10, height = 6
+)
+
 # ------------------------------------------------------------------------------
 # Marker gene dotplot
 
+# Select genes
 genes <- list(
   "Control"    = c(
     "LYZ", "LCP1"
@@ -534,6 +560,7 @@ genes <- list(
 )
 genes <- as.character(unlist(genes))
 
+# Convert SYMBOLs to ENSEMBL IDs
 ids <- features$ENSEMBL[match(genes, features$SYMBOL)]
 ids <- ids[ids %in% rownames(object@assays$RNA@data) & !duplicated(ids)]
 
@@ -605,6 +632,11 @@ ggplot2::ggplot(
   ) +
   ggplot2::scale_size_area(max_size = 10)
 
+# Save plot
+ggplot2::ggsave(
+  "Monocytes_marker-dotplot.png", width = 12, height = 6
+)
+
 # ------------------------------------------------------------------------------
 # Show normalized gene expression
 
@@ -637,17 +669,19 @@ ggplot2::ggplot(
   viridis::scale_color_viridis(option = "A", direction = -1) +
   ggplot2::theme_void(base_size = 20) +
   ggplot2::theme(
-    legend.position = "top"
+    legend.position = c(0.82, 0.1)
   ) +
   ggplot2::guides(
     col = ggplot2::guide_colorbar(
-      barheight = 1, barwidth = 20, frame.colour = "black", ticks = FALSE
+      barheight = .5, barwidth = 15, frame.colour = "black", ticks = FALSE,
+      title.position = "top", title.hjust = 0.5, direction = "horizontal"
     )
   ) +
-  ggplot2::labs(col = NULL) +
+  ggplot2::labs(col = "Normalized expression") +
   ggplot2::coord_fixed() + 
   ggplot2::annotate(
     geom  = "segment", 
+    size  = 0.25,
     x     = min(data$x)*1.1, 
     xend  = seq(min(data$x), max(data$x), length.out = 100)[25], 
     y     = min(data$y)*1.1, 
@@ -658,6 +692,7 @@ ggplot2::ggplot(
   ) +
   ggplot2::annotate(
     geom  = "segment", 
+    size  = 0.25,
     x     = min(data$x)*1.1, 
     xend  = min(data$x)*1.1, 
     y     = min(data$y)*1.1, 
@@ -666,6 +701,11 @@ ggplot2::ggplot(
       angle  = 30, length = ggplot2::unit(0.05, "inches"), type   = "closed"
     )
   )
+
+# Save plot
+ggplot2::ggsave(
+  "Monocytes_marker-umap.png", width = 12, height = 4.5
+)
 
 # ------------------------------------------------------------------------------
 # Differential expression between stimulation conditions
@@ -686,17 +726,23 @@ for (i in names(markers)) {
 }
 markers <- dplyr::bind_rows(as.list(markers))
 markers$gene <- features$SYMBOL[match(markers$ENSEMBL, features$ENSEMBL)]
-markers <- markers[, order(names(markers), decreasing = TRUE)]
+markers <- markers[, c(6,9,7,1,2,8,3,4,5)]
 
+# Save marker table
+write.csv(markers, "Monocytes_Condition-markers.csv", row.names = FALSE)
+
+# Select DE genes
 cutoff <- 1e-15
 de <- markers[markers$FDR < cutoff, ]
 
+# Fetch data
 ids <- features$ENSEMBL[match(de$gene, features$SYMBOL)]
 data <- object@assays$SCT@data[
   ids, order(object@meta.data$condition, object@meta.data$donor)
   ]
 data <- t(scale(t(as.matrix(data))))
 
+# Create column annotations/gaps
 cann <- data.frame(
   Condition = object@meta.data$condition,
   Donor     = object@meta.data$donor,
@@ -707,13 +753,15 @@ color.cann <- list(
   Donor     = color.rep
 )
 
+# Create row annotations/gaps
 rann <- data.frame(
   Cluster = de$cluster
 )
 limits <- c(-2, 2)
 breaks <- seq(from = min(limits), to = max(limits), length.out = 100)
 
-pheatmap::pheatmap(
+# Plot
+plot <- pheatmap::pheatmap(
   mat    = data, 
   breaks = breaks,
   color  = colorRampPalette(
@@ -730,17 +778,24 @@ pheatmap::pheatmap(
   gaps_row             = head(as.numeric(
     cumsum(table(rann$Cluster)[unique(rann$Cluster)])
     ), -1), 
-  cellwidth            = 0.4
+  silent = TRUE
+)
+
+# Save plot
+ggplot2::ggsave(
+  "Monocytes_de-heatmap.png", plot, width = 10, height = 6
 )
 
 # ------------------------------------------------------------------------------
 # Transcription factor enrichment by ChEA3
 
+# Retrieve DE genes
 genes <- split(
   de$gene, 
   factor(de$cluster, levels = c("Control", "SARS-CoV-2", "3p-hpRNA", "R848"))
   )
 
+# ChEA3 query
 result <- list()
 for (i in names(genes)) {
   print(i)
@@ -771,6 +826,7 @@ for (j in names(result)) {
 }
 result <- dplyr::bind_rows(result)
 
+# Add metrics
 result$Rank <- as.numeric(result$Rank)
 result$Score <- as.numeric(result$Score)
 result$map <- unlist(
@@ -779,15 +835,13 @@ result$map <- unlist(
 result$geneRatio <- result$map / result$bg
 result$cluster <- factor(result$cluster, unique(result$cluster))
 
-# Order result by Score
+# Order and select TFs by mean rank
 result <- result[order(result$cluster, result$Score), ]
-tfs <- character()
-
 tfs <- result$TF[result$Score < 35]
-
 data <- result[which(result$TF %in% tfs), ]
 data$TF <- factor(data$TF, levels = unique(tfs))
 
+# Plot
 ggplot2::ggplot(
   data = data,
   mapping = ggplot2::aes(
@@ -812,6 +866,11 @@ ggplot2::ggplot(
       reverse = TRUE
     )
   )
+
+# Save plot
+ggplot2::ggsave(
+  "Monocytes_TF-heatmap.png", width = 12, height = 3
+)
 
 # ------------------------------------------------------------------------------
 # Enrichment of fibrosis gene sets
@@ -890,13 +949,14 @@ for (i in names(genes)) {
 
 data <- dplyr::bind_rows(result)
 
+# Set geneset name, reference and order
 term2ref <- unique(dict[, c("term", "ref")])$ref
 names(term2ref) <- unique(dict[, c("term", "ref")])$term
-
 data$Geneset <- factor(
   data$Geneset, unique(data$Geneset)[c(4,2,10,8,7,3,11,1,5,6,9,12)]
 )
 
+# Set colors
 cols <- c(
   "Morse et al."   = "seagreen",
   "Adams et al."   = "navy",
@@ -905,6 +965,7 @@ cols <- c(
 )
 ref.color <- cols[term2ref[levels(data$Geneset)]]
 
+# Plot
 ggplot2::ggplot(
   data = data,
   mapping = ggplot2::aes(
@@ -953,7 +1014,14 @@ ggplot2::ggplot(
   ) +
   ggplot2::expand_limits(y = -0.5)
 
+# Save plot
+ggplot2::ggsave(
+  "Monocytes_IPF-geneset-enrichment.png", width = 10, height = 6
+)
+
 # Module scores ================================================================
+
+# Create scores from gene sets
 idsets <- list()
 for (i in names(genesets)) {
   print(i)
@@ -972,11 +1040,12 @@ for (i in names(genesets)) {
   names(object@meta.data)[length(names(object@meta.data))] <- i
 }
 
-scores <- object@meta.data[, names(object@meta.data) %in% dict$term]
+# 1. Scores on UMAP embedding
 
+# Re-shape
+scores <- object@meta.data[, names(object@meta.data) %in% dict$term]
 scores$x <- object@reductions$umap@cell.embeddings[, 1]
 scores$y <- object@reductions$umap@cell.embeddings[, 2]
-
 data <- tidyr::gather(scores, "Geneset", "Score", -x, -y)
 data$Geneset <- factor(data$Geneset, levels = unique(data$Geneset))
 
@@ -985,6 +1054,7 @@ limits <- c(-0.5, 1)
 data$Score[data$Score > max(limits)] <- max(limits)
 data$Score[data$Score < min(limits)] <- min(limits)
 
+# Plot
 ggplot2::ggplot(
   data = data,
   mapping = ggplot2::aes(
@@ -1030,17 +1100,21 @@ ggplot2::ggplot(
     )
   )
 
-# Violin Plots
+# Save plot
+ggplot2::ggsave(
+  "Monocytes_IPF-geneset-score_umap.png", width = 12, height = 6
+)
+
+# 2. Score summary across clusters by violin plots
+
+# Re-shape
 data <- scores
 data$Cluster <- object@meta.data$condition
-
 data <- tidyr::gather(data, "Geneset", "Score", -Cluster, -x, -y)
-
 data$Geneset <- factor(data$Geneset, unique(data$Geneset))
 data$col <- data$Score
 data$col[data$col > max(limits)] <- max(limits)
 data$col[data$col < min(limits)] <- min(limits)
-
 data <- dplyr::mutate(dplyr::group_by(data, Geneset), ms = mean(Score))
 
 # Calculate p-values
@@ -1060,9 +1134,10 @@ for (i in levels(data$Geneset)) {
 ps$p.adjust <- p.adjust(ps$p.value)
 ps$label <- round(-log10(ps$p.adjust))
 
-# Plot
+# Adjust infinite values
 ps$label[ps$label == Inf] <- max(ps$label[ps$label < Inf])
 
+# Plot
 ggplot2::ggplot(
   data = data,
   mapping = ggplot2::aes(
@@ -1114,6 +1189,11 @@ ggplot2::ggplot(
     col = "white"
   ) +
   viridis::scale_fill_viridis(direction = -1, option = "A")
+
+# Save plot
+ggplot2::ggsave(
+  "Monocytes_IPF-geneset-score_violins.png", width = 12, height = 6
+)
 
 # end of document
 ################################################################################
