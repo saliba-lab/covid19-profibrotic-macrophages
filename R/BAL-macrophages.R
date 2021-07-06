@@ -344,7 +344,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_Celltypes.png", width = 5, height = 6
+  "BAL_Celltypes.pdf", width = 5, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -402,7 +402,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_Patients.png", width = 7, height = 6
+  "BAL_Patients.pdf", width = 7, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -470,7 +470,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_Timepoints.png", width = 7, height = 6
+  "BAL_Timepoints.pdf", width = 7, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -531,7 +531,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_viral-mRNA.png", width = 6, height = 6
+  "BAL_viral-mRNA.pdf", width = 6, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -619,7 +619,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_Celltype-markers_dotplot.png", width = 12, height = 6
+  "BAL_Celltype-markers_dotplot.pdf", width = 12, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -707,8 +707,16 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_Celltype-proportions_barplot.png", width = 12, height = 6
+  "BAL_Celltype-proportions_barplot.pdf", width = 12, height = 6
 )
+
+# ------------------------------------------------------------------------------
+# Save dataset to disk (optional)
+
+save <- FALSE
+if (save) {
+  saveRDS(object, "BAL.Rds")
+}
 
 # ------------------------------------------------------------------------------
 # Select the macrophages & re-normalize 
@@ -837,19 +845,20 @@ object@meta.data$Cluster <- factor(leiden::leiden(
 
 # Annotate
 cluster.annotation <- c(
-  "1"  = "1 FCN1-Mono",
-  "2"  = "3 SPP1/LGMN-Mφ",
-  "3"  = "2 Mono/Mφ",
-  "4"  = "4 SPP1/TREM2-Mφ",
-  "5"  = "5 INHBA-AMφ",
-  "6"  = "1 FCN1-Mono",
-  "7"  = "2 Mono/Mφ",
-  "8"  = "6 Prolif. AMφ",
-  "9"  = "3 SPP1/LGMN-Mφ",
-  "10" = "2 Mono/Mφ"
+  "1"  = "Monocytes",
+  "2"  = "CD163/LGMN-Mφ",
+  "3"  = "Mono/Mφ",
+  "4"  = "AMφ-1",
+  "5"  = "AMφ-2",
+  "6"  = "Monocytes",
+  "7"  = "Mono/Mφ",
+  "8"  = "Prolif. AMφ",
+  "9"  = "CD163/LGMN-Mφ",
+  "10" = "Mono/Mφ"
 )
 object@meta.data$Cluster <- factor(
-  cluster.annotation[as.character(object$Cluster)]
+  cluster.annotation[as.character(object$Cluster)],
+  unique(cluster.annotation)[c(1,3,2,4,5,6)]
 )
 
 # ------------------------------------------------------------------------------
@@ -857,12 +866,12 @@ object@meta.data$Cluster <- factor(
 
 # Select colors
 color.cluster <- c(
-  "1 FCN1-Mono"      = "#009E73",
-  "2 Mono/Mφ"       = "#E69F00",
-  "3 SPP1/LGMN-Mφ"  = "#D55E00",
-  "4 SPP1/TREM2-Mφ" = "#A020F0",
-  "5 INHBA-AMφ"     = "#0072B2",
-  "6 Prolif. AMφ"   = "#56B4E9"
+  "Monocytes"     = "#009E73",
+  "Mono/Mφ"       = "#E69F00",
+  "CD163/LGMN-Mφ" = "#D55E00",
+  "AMφ-1"         = "#A020F0",
+  "AMφ-2"         = "#0072B2",
+  "Prolif. AMφ"   = "#56B4E9"
 )
 object@misc$colors$Cluster <- color.cluster
 
@@ -920,7 +929,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_Clusters.png", width = 11, height = 6
+  "BAL-macrophages_Clusters.pdf", width = 11, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -957,6 +966,7 @@ rgl::rgl.lines(c(0, 0), c(min(data$y), max(data$y)), c(0, 0), color = "firebrick
 rgl::rgl.lines(c(0, 0), c(0, 0), c(min(data$z), max(data$z)), color = "seagreen", lwd = 4)
 
 # Save plot
+rgl::rgl.snapshot("BAL-macrophages_3D-umap-clusters.pdf")
 rgl::writeWebGL(filename = "BAL-macrophages_3D-umap-clusters.html")
 rgl::rgl.close()
 
@@ -968,11 +978,6 @@ data <- tidyr::tibble(
   x = object@reductions$umap@cell.embeddings[, 1],
   y = object@reductions$umap@cell.embeddings[, 2],
   col = object$Cluster
-)
-
-# Select cells to include for analysis
-cells <- which(
-  !data$col %in% c("")
 )
 
 # Calculate the slingshot trajectory
@@ -1054,7 +1059,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_Cluster-trajectory.png", width = 11, height = 6
+  "BAL-macrophages_Cluster-trajectory.pdf", width = 11, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -1114,7 +1119,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_viral-mRNA.png", width = 11, height = 6
+  "BAL-macrophages_viral-mRNA.pdf", width = 11, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -1194,7 +1199,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_Cluster-markers_umap.png", width = 12, height = 6
+  "BAL-macrophages_Cluster-markers_umap.pdf", width = 12, height = 6
 )
 
 # 2. Scaled expression in dotplot
@@ -1306,7 +1311,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_Cluster-markers_dotplot.png", width = 12, height = 3
+  "BAL-macrophages_Cluster-markers_dotplot.pdf", width = 12, height = 3
 )
 
 # ------------------------------------------------------------------------------
@@ -1389,7 +1394,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_barplot-cluster-patient.png", width = 11, height = 6
+  "BAL-macrophages_barplot-cluster-patient.pdf", width = 11, height = 6
   )
 
 # 2. UMAP embedding split by patients
@@ -1443,7 +1448,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_umap-cluster-patient.png", width = 12, height = 4
+  "BAL-macrophages_umap-cluster-patient.pdf", width = 12, height = 4
   )
 
 # ------------------------------------------------------------------------------
@@ -1473,23 +1478,20 @@ write.csv(markers, "BAL-macrophages_Cluster-de-genes.csv", row.names = FALSE)
 # Select genes based on FDR cutoff
 cutoff <- 1e-15
 
-genes <- list()
-index <- list()
-for (i in unique(markers$cluster)) {
-  print(i)
-  index[[i]] <- which(markers$cluster == i & markers$FDR < cutoff)
-  genes[[i]] <- markers$gene[index[[i]]]
-}
-genes$`6 Prolif. AMφ` <- head(genes$`6 Prolif. AMφ`, 100)
-index$`6 Prolif. AMφ` <- head(index$`6 Prolif. AMφ`, 100)
+# Select unique DE genes
+de <- markers[markers$FDR < cutoff, ]
+de <- de[!duplicated(de$gene), ]
 
-ids <- features$ENSEMBL[match(
-  unlist(genes), features$SYMBOL
-)]
+# Limit proliferation DE genes
+v <- de$gene[de$cluster == "Prolif. AMφ"]
+de <- de[which(!de$gene %in% v[c(100:length(v))]), ]
+
+# Re-order factor levels
+de$cluster <- factor(de$cluster, levels(object$Cluster))
 
 # Fetch normalized count data
 data <- object@assays$RNA@data[
-  ids, order(object@meta.data$Cluster, object@meta.data$patient)
+  de$ENSEMBL, order(object@meta.data$Cluster, object@meta.data$patient)
 ]
 
 # Scale (z-scores)
@@ -1514,7 +1516,7 @@ names(color.cann$Patient) <- intersect(
 
 # Create row annotations/gaps
 rann <- data.frame(
-  Cluster = markers$cluster[unlist(index)]
+  Cluster = de$cluster
 )
 
 # Set colorscale limits
@@ -1547,6 +1549,11 @@ ggplot2::ggsave(
 
 # -----------------------------------------------------------------------------
 # ChIP-seq enrichment analysis (ChEA3) based on DE genes
+
+# Select non-unique DE genes
+de <- markers[markers$FDR < cutoff, ]
+de$cluster <- factor(de$cluster, levels(object$Cluster))
+genes <- split(de$gene, de$cluster)
 
 # ChEA3 query for each cluster
 result <- list()
@@ -1588,12 +1595,14 @@ result$map <- unlist(
 result$geneRatio <- result$map / result$bg
 
 # Order result by Score
+result$cluster <- factor(result$cluster, levels(object$Cluster))
 result <- result[order(result$cluster, result$Score), ]
 
 # Select TFs by mean rank
 tfs <- result$TF[result$Score < 30]
 data <- result[which(result$TF %in% tfs), ]
 data$TF <- factor(data$TF, levels = unique(tfs))
+data$cluster <- factor(data$cluster, levels(object$Cluster))
 
 # Plot
 ggplot2::ggplot(
@@ -1625,7 +1634,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_TF-enrichment.png", width = 12, height = 3
+  "BAL-macrophages_TF-enrichment.pdf", width = 12, height = 3
 )
 
 # ------------------------------------------------------------------------------
@@ -1765,7 +1774,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_COVID-19-geneset-enrichment.png", width = 11, height = 6
+  "BAL-macrophages_COVID-19-geneset-enrichment.pdf", width = 11, height = 6
 )
 
 # Module scores ================================================================
@@ -1859,7 +1868,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_COVID-19-geneset-score-umap.png", width = 10, height = 6
+  "BAL-macrophages_COVID-19-geneset-score-umap.pdf", width = 10, height = 6
 )
 
 # 2. Violin plots as cluster-based population summaries
@@ -1953,7 +1962,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_COVID-19-geneset-score-violins.png", width = 12, height = 6
+  "BAL-macrophages_COVID-19-geneset-score-violins.pdf", width = 12, height = 8
 )
 
 # ------------------------------------------------------------------------------
@@ -2096,7 +2105,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_IPF-geneset-enrichment.png", width = 11, height = 6
+  "BAL-macrophages_IPF-geneset-enrichment.pdf", width = 11, height = 6
 )
 
 # Module scores ================================================================
@@ -2189,7 +2198,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_IPF-geneset-score-umap.png", width = 12, height = 6
+  "BAL-macrophages_IPF-geneset-score-umap.pdf", width = 12, height = 6
 )
 
 # 2. Violin plots as cluster-based population summaries
@@ -2284,8 +2293,16 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_IPF-geneset-score-violins.png", width = 12, height = 6
+  "BAL-macrophages_IPF-geneset-score-violins.pdf", width = 12, height = 6
 )
+
+# ------------------------------------------------------------------------------
+# Save dataset to disk (optional)
+
+save <- FALSE
+if (save) {
+  saveRDS(object, "BAL-macrophages.Rds")
+}
 
 # end of document
 ################################################################################
