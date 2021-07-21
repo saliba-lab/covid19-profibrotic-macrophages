@@ -18,21 +18,58 @@ server <- function(input, output, session) {
   # ----------------------------------------------------------------------------
   # BAL
   
+  # Data upload ================================================================
   # Load data on click
   shiny::observeEvent(input$load_bal, {
     rv$bal <- readRDS("../../data/BAL.Rds")
   })
-  
   # Show object dimensions
   output$bal_shape <- shiny::renderPrint({
     shiny::req(input$load_bal)
     glue::glue("{dim(rv$bal)[1]} genes across {dim(rv$bal)[2]} cells")
   })
   
+  # Embedding metadata =========================================================
   # Plot 
   output$bal_embedding_metadata <- shiny::renderPlot({
     shiny::req(rv$bal)
-    plot.embedding(rv$bal)
+    plot.embedding(
+      rv$bal, coldata = input$bal_embedding_metadata_coldata,
+      pt.size = 0.1
+      )
+  })
+  # Select coldata
+  output$bal_embedding_metadata_coldata <- shiny::renderUI({
+    shiny::req(rv$bal)
+    shiny::selectInput(
+      inputId  = "bal_embedding_metadata_coldata",
+      label    = "Select cell-specific metadata",
+      choices  = names(rv$bal@meta.data), 
+      selected = tail(names(rv$bal@meta.data), 1),
+      multiple = FALSE
+    )
+  })
+  
+  # Embedding expression =======================================================
+  # Plot 
+  output$bal_embedding_expression <- shiny::renderPlot({
+    shiny::req(rv$bal)
+    plot.embedding(
+      rv$bal, coldata = input$bal_embedding_expression_coldata, 
+      pt.size = 0.1
+      )
+  })
+  # Select coldata
+  shiny::observe({
+    shiny::req(rv$bal)
+    choices <- rownames(rv$bal@assays$RNA@data)
+    choices <- convertFeatures(choices, rv$bal@misc$features, 1, 2)
+    shiny::updateSelectizeInput(
+      session = session,
+      inputId = "bal_embedding_expression_coldata",
+      choices = choices,
+      server  = TRUE
+    )
   })
   
   # ----------------------------------------------------------------------------

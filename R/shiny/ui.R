@@ -56,14 +56,49 @@ ui <- shiny::fluidPage(
         shiny::tabPanel(
           title = "Overview"
           ,
+          # Metadata on embedding
           shiny::column(
             width = 6, offset = 0
             ,
+            # Plot
             shiny::plotOutput("bal_embedding_metadata")
+            ,
+            # Left side
+            shiny::column(
+              width = 6, offset = 0
+              ,
+              shiny::uiOutput("bal_embedding_metadata_coldata")
+            )
+            ,
+            # Right side
+            shiny::column(
+              width = 6, offset = 0
+            )
           )
           ,
+          # Gene expression on embedding
           shiny::column(
             width = 6, offset = 0
+            ,
+            # Plot
+            shiny::plotOutput("bal_embedding_expression")
+            ,
+            # Left side
+            shiny::column(
+              width = 6, offset = 0
+              ,
+              shiny::selectizeInput(
+                inputId  = "bal_embedding_expression_coldata",
+                label    = "Select gene",
+                choices  = NULL,
+                multiple = FALSE
+              )
+            )
+            ,
+            # Right side
+            shiny::column(
+              width = 6, offset = 0
+            )
           )
         )
         ,
