@@ -2,7 +2,7 @@
 # scRNA-seq analysis of stimulated monocytes
 
 # Set working directory to save output
-d <- "~/SARS-CoV-2-infection-triggers-profibrotic-macrophage-responses-and-lung-fibrosis"
+d <- "~/Monocytes"
 dir.create(d)
 setwd(d)
 
@@ -10,41 +10,33 @@ setwd(d)
 # Download data from public repository
 
 # Barcodes
-con <- "https://nubes.helmholtz-berlin.de/s/kr3pDEnTs8Zig59/download"
-file <- "~/Downloads/monocytes-barcodes.tsv"
-download.file(url = con, destfile = file)
-barcodes <- readLines(file)
+con <- url("https://nubes.helmholtz-berlin.de/s/kr3pDEnTs8Zig59/download")
+barcodes <- readLines(gzcon(con))
 
 # Features
-con <- "https://nubes.helmholtz-berlin.de/s/kDDPYYTjj7CMfEB/download"
-file <- "~/Downloads/monocytes-features.tsv"
-download.file(url = con, destfile = file)
-features <- readr::read_tsv(file, col_names = c("ENSEMBL", "SYMBOL", "TYPE"))
+con <- url("https://nubes.helmholtz-berlin.de/s/kDDPYYTjj7CMfEB/download")
+features <- readr::read_tsv(
+  gzcon(con), col_names = c("ENSEMBL", "SYMBOL", "TYPE")
+  )
 
 # Matrix
-con <- "https://nubes.helmholtz-berlin.de/s/ecHWyJy3eXxgYYc/download"
-file <- "~/Downloads/monocytes-matrix.mtx"
-download.file(url = con, destfile = file)
-matrix <- Matrix::readMM(gzfile(file))
+con <- url("https://nubes.helmholtz-berlin.de/s/ecHWyJy3eXxgYYc/download")
+matrix <- as(Matrix::readMM(gzcon(con)), "dgCMatrix")
 colnames(matrix) <- barcodes
 rownames(matrix) <- features$ENSEMBL
 
 # Donor information
-con <- "https://nubes.helmholtz-berlin.de/s/xsYCzt6wpMDZafA/download"
-file <- "~/Downloads/monocytes-donors-1.tsv"
-download.file(url = con, destfile = file)
 donors <- list(
-  "1" = readr::read_tsv(file)
+  "1" = readr::read_tsv(gzcon(url(
+    "https://nubes.helmholtz-berlin.de/s/xsYCzt6wpMDZafA/download"
+  ))),
+  "2" = readr::read_tsv(gzcon(url(
+    "https://nubes.helmholtz-berlin.de/s/FoGG7wAJnDaZAXe/download"
+  )))
 )
-
-con <- "https://nubes.helmholtz-berlin.de/s/FoGG7wAJnDaZAXe/download"
-file <- "~/Downloads/monocytes-donors-2.tsv"
-download.file(url = con, destfile = file)
-donors[["2"]] <- readr::read_tsv(file)
 donors[["2"]]$barcode <- stringr::str_replace(
   donors[["2"]]$barcode, "1", "2"
-  )
-
+)
 donors <- dplyr::bind_rows(donors)
 
 # Check overlap between donors classification & matrix
@@ -433,7 +425,7 @@ ggplot2::ggplot(
     col   = col
   )
 ) +
-  ggplot2::geom_point(size = 2) +
+  ggplot2::geom_point(size = 3) +
   viridis::scale_color_viridis(option = "A", direction = -1, trans = "log10") +
   ggplot2::theme_void(base_size = 30) +
   ggplot2::theme(
@@ -734,6 +726,7 @@ write.csv(markers, "Monocytes_Condition-markers.csv", row.names = FALSE)
 # Select DE genes
 cutoff <- 1e-15
 de <- markers[markers$FDR < cutoff, ]
+de <- de[!duplicated(de$gene), ]
 
 # Fetch data
 ids <- features$ENSEMBL[match(de$gene, features$SYMBOL)]
@@ -790,6 +783,7 @@ ggplot2::ggsave(
 # Transcription factor enrichment by ChEA3
 
 # Retrieve DE genes
+de <- markers[markers$FDR < cutoff, ]
 genes <- split(
   de$gene, 
   factor(de$cluster, levels = c("Control", "SARS-CoV-2", "3p-hpRNA", "R848"))
@@ -871,17 +865,20 @@ ggplot2::ggplot(
 ggplot2::ggsave(
   "Monocytes_TF-heatmap.png", width = 12, height = 3
 )
+write.csv(result, "Monocytes_TF.csv", row.names = FALSE)
 
 # ------------------------------------------------------------------------------
 # Enrichment of fibrosis gene sets
 
 # Retrieve gene set dictionary
-con <- "https://nubes.helmholtz-berlin.de/s/25ZGCXAHdBffZCP/download"
-file <- "~/Downloads/genesets.xlsx"
-download.file(url = con, destfile = file)
+file <- tempfile()
+download.file(
+  "https://nubes.helmholtz-berlin.de/s/25ZGCXAHdBffZCP/download", file
+)
 dictionary <- readxl::read_excel(file)
 names(dictionary) <- c("ref", "term", "disease", "gene")
 
+# Select disease and gene set size
 key <- "IPF"
 n <- 50
 
@@ -1022,7 +1019,6 @@ ggplot2::ggsave(
 # Module scores ================================================================
 
 # Create scores from gene sets
-idsets <- list()
 for (i in names(genesets)) {
   print(i)
   ids <- as.character(na.omit(
@@ -1048,6 +1044,9 @@ scores$x <- object@reductions$umap@cell.embeddings[, 1]
 scores$y <- object@reductions$umap@cell.embeddings[, 2]
 data <- tidyr::gather(scores, "Geneset", "Score", -x, -y)
 data$Geneset <- factor(data$Geneset, levels = unique(data$Geneset))
+data$Geneset <- factor(
+  data$Geneset, unique(data$Geneset)[c(4,2,10,8,7,3,11,1,5,6,9,12)]
+)
 
 # Set colorscale limits
 limits <- c(-0.5, 1)
@@ -1116,6 +1115,9 @@ data$col <- data$Score
 data$col[data$col > max(limits)] <- max(limits)
 data$col[data$col < min(limits)] <- min(limits)
 data <- dplyr::mutate(dplyr::group_by(data, Geneset), ms = mean(Score))
+data$Geneset <- factor(
+  data$Geneset, unique(data$Geneset)[c(4,2,10,8,7,3,11,1,5,6,9,12)]
+)
 
 # Calculate p-values
 ps <- unique(data[, c("Geneset", "Cluster")])
@@ -1194,6 +1196,9 @@ ggplot2::ggplot(
 ggplot2::ggsave(
   "Monocytes_IPF-geneset-score_violins.png", width = 12, height = 6
 )
+
+# Save dataset
+saveRDS(object, "Monocytes.Rds")
 
 # end of document
 ################################################################################

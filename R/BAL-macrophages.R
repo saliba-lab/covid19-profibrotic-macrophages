@@ -2,7 +2,7 @@
 # scRNA-seq analysis of BAL macrophages
 
 # Set working directory to save output
-d <- "~/SARS-CoV-2-infection-triggers-profibrotic-macrophage-responses-and-lung-fibrosis"
+d <- "~/BAL-macrophages"
 dir.create(d)
 setwd(d)
 
@@ -10,22 +10,18 @@ setwd(d)
 # Download data from public repository
 
 # Barcodes
-con <- "https://nubes.helmholtz-berlin.de/s/8DYsAwEMD3CniNj/download"
-file <- "~/Downloads/BAL-macrophages_barcodes.tsv"
-download.file(url = con, destfile = file)
-barcodes <- readLines(file)
+con <- url("https://nubes.helmholtz-berlin.de/s/8DYsAwEMD3CniNj/download")
+barcodes <- readLines(gzcon(con))
 
 # Features
-con <- "https://nubes.helmholtz-berlin.de/s/rDAk9Sa7n8rGGG6/download"
-file <- "~/Downloads/BAL-macrophages_features.tsv"
-download.file(url = con, destfile = file)
-features <- readr::read_tsv(file, col_names = c("ENSEMBL", "SYMBOL", "TYPE"))
+con <- url("https://nubes.helmholtz-berlin.de/s/rDAk9Sa7n8rGGG6/download")
+features <- readr::read_tsv(
+  gzcon(con), col_names = c("ENSEMBL", "SYMBOL", "TYPE")
+)
 
 # Matrix
-con <- "https://nubes.helmholtz-berlin.de/s/dS39WttqQz7qedp/download"
-file <- "~/Downloads/BAL-macrophages_matrix.mtx"
-download.file(url = con, destfile = file)
-matrix <- Matrix::readMM(gzfile(file))
+con <- url("https://nubes.helmholtz-berlin.de/s/dS39WttqQz7qedp/download")
+matrix <- as(Matrix::readMM(gzcon(con)), "dgCMatrix")
 colnames(matrix) <- barcodes
 rownames(matrix) <- features$ENSEMBL
 
@@ -344,8 +340,27 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_Celltypes.pdf", width = 5, height = 6
+  "BAL_Celltypes.png", width = 5, height = 6
 )
+
+# Create DE table between cell types
+markers <- scran::findMarkers(
+  x         = object@assays$RNA@data,
+  groups    = object@meta.data$Celltype,
+  pval.type = "some",
+  test.type = "wilcox",
+  direction = "up",
+  block     = object@meta.data$patient
+)
+for (i in names(markers)) {
+  markers[[i]] <- as.data.frame(markers[[i]])
+  markers[[i]]$cluster <- i
+  markers[[i]]$ENSEMBL <- row.names(markers[[i]])
+}
+markers <- dplyr::bind_rows(as.list(markers))
+markers$gene <- features$SYMBOL[match(markers$ENSEMBL, features$ENSEMBL)]
+markers <- markers[, c(10,13,11,1,2,3:9,12)]
+write.csv(markers, "BAL_Celltype-markers.csv", row.names = FALSE)
 
 # ------------------------------------------------------------------------------
 # Show patients
@@ -402,8 +417,26 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_Patients.pdf", width = 7, height = 6
+  "BAL_Patients.png", width = 7, height = 6
 )
+
+# Create DE table between patients
+markers <- scran::findMarkers(
+  x         = object@assays$RNA@data,
+  groups    = object@meta.data$patient,
+  pval.type = "some",
+  test.type = "wilcox",
+  direction = "up"
+)
+for (i in names(markers)) {
+  markers[[i]] <- as.data.frame(markers[[i]])
+  markers[[i]]$cluster <- i
+  markers[[i]]$ENSEMBL <- row.names(markers[[i]])
+}
+markers <- dplyr::bind_rows(as.list(markers))
+markers$gene <- features$SYMBOL[match(markers$ENSEMBL, features$ENSEMBL)]
+markers <- markers[, c(10,13,11,1,2,3:9,12)]
+write.csv(markers, "BAL_Patient-markers.csv", row.names = FALSE)
 
 # ------------------------------------------------------------------------------
 # Show timepoints (day post symptom onset)
@@ -470,8 +503,26 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_Timepoints.pdf", width = 7, height = 6
+  "BAL_Timepoints.png", width = 7, height = 6
 )
+
+# Create DE table between timepoints
+markers <- scran::findMarkers(
+  x         = object@assays$RNA@data,
+  groups    = object@meta.data$dpso,
+  pval.type = "some",
+  test.type = "wilcox",
+  direction = "up"
+)
+for (i in names(markers)) {
+  markers[[i]] <- as.data.frame(markers[[i]])
+  markers[[i]]$cluster <- i
+  markers[[i]]$ENSEMBL <- row.names(markers[[i]])
+}
+markers <- dplyr::bind_rows(as.list(markers))
+markers$gene <- features$SYMBOL[match(markers$ENSEMBL, features$ENSEMBL)]
+markers <- markers[, c(6,9,7,1,2,3:5,8)]
+write.csv(markers, "BAL_Timepoint-markers.csv", row.names = FALSE)
 
 # ------------------------------------------------------------------------------
 # Show viral mRNA counts
@@ -531,7 +582,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_viral-mRNA.pdf", width = 6, height = 6
+  "BAL_viral-mRNA.png", width = 6, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -619,8 +670,14 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_Celltype-markers_dotplot.pdf", width = 12, height = 6
+  "BAL_Celltype-markers_dotplot.png", width = 12, height = 6
 )
+
+# Save DE table of marker genes
+markers <- read.csv("BAL_Celltype-markers.csv")
+write.csv(
+  markers[markers$gene %in% unlist(genes), ], "BAL_Celltype-markers_dotplot.csv"
+  )
 
 # ------------------------------------------------------------------------------
 # Show proportions of cell types across patients
@@ -707,16 +764,13 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL_Celltype-proportions_barplot.pdf", width = 12, height = 6
+  "BAL_Celltype-proportions_barplot.png", width = 12, height = 6
 )
 
 # ------------------------------------------------------------------------------
 # Save dataset to disk (optional)
 
-save <- FALSE
-if (save) {
-  saveRDS(object, "BAL.Rds")
-}
+saveRDS(object, "BAL.Rds")
 
 # ------------------------------------------------------------------------------
 # Select the macrophages & re-normalize 
@@ -929,7 +983,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_Clusters.pdf", width = 11, height = 6
+  "BAL-macrophages_Clusters.png", width = 11, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -966,7 +1020,7 @@ rgl::rgl.lines(c(0, 0), c(min(data$y), max(data$y)), c(0, 0), color = "firebrick
 rgl::rgl.lines(c(0, 0), c(0, 0), c(min(data$z), max(data$z)), color = "seagreen", lwd = 4)
 
 # Save plot
-rgl::rgl.snapshot("BAL-macrophages_3D-umap-clusters.pdf")
+rgl::rgl.snapshot("BAL-macrophages_3D-umap-clusters.png")
 rgl::writeWebGL(filename = "BAL-macrophages_3D-umap-clusters.html")
 rgl::rgl.close()
 
@@ -983,8 +1037,8 @@ data <- tidyr::tibble(
 # Calculate the slingshot trajectory
 set.seed(1993)
 trajectory <- slingshot::slingshot(
-  data          = data[cells, c("x", "y")],
-  clusterLabels = data$col[cells], 
+  data          = data[, c("x", "y")],
+  clusterLabels = data$col, 
   allow.breaks  = TRUE
 )
 
@@ -1001,7 +1055,7 @@ curves <- dplyr::bind_rows(curves)
 
 # Plot
 ggplot2::ggplot(
-  data = data[cells, ],
+  data = data,
   mapping = ggplot2::aes(
     x     = x,
     y     = y,
@@ -1059,7 +1113,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_Cluster-trajectory.pdf", width = 11, height = 6
+  "BAL-macrophages_Cluster-trajectory.png", width = 11, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -1075,7 +1129,7 @@ data <- data[order(data$col), ]
 
 # Plot
 ggplot2::ggplot(
-  data = data[cells, ],
+  data = data,
   mapping = ggplot2::aes(
     x     = x,
     y     = y,
@@ -1119,7 +1173,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_viral-mRNA.pdf", width = 11, height = 6
+  "BAL-macrophages_viral-mRNA.png", width = 11, height = 6
 )
 
 # ------------------------------------------------------------------------------
@@ -1199,7 +1253,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_Cluster-markers_umap.pdf", width = 12, height = 6
+  "BAL-macrophages_Cluster-markers_umap.png", width = 12, height = 6
 )
 
 # 2. Scaled expression in dotplot
@@ -1311,7 +1365,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_Cluster-markers_dotplot.pdf", width = 12, height = 3
+  "BAL-macrophages_Cluster-markers_dotplot.png", width = 12, height = 3
 )
 
 # ------------------------------------------------------------------------------
@@ -1394,7 +1448,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_barplot-cluster-patient.pdf", width = 11, height = 6
+  "BAL-macrophages_barplot-cluster-patient.png", width = 11, height = 6
   )
 
 # 2. UMAP embedding split by patients
@@ -1448,7 +1502,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_umap-cluster-patient.pdf", width = 12, height = 4
+  "BAL-macrophages_umap-cluster-patient.png", width = 12, height = 4
   )
 
 # ------------------------------------------------------------------------------
@@ -1473,7 +1527,11 @@ markers$gene <- features$SYMBOL[match(markers$ENSEMBL, features$ENSEMBL)]
 markers <- markers[, c(8,11,9,1,2,10,3,4,5,6,7)]
 
 # Save results of DE test
-write.csv(markers, "BAL-macrophages_Cluster-de-genes.csv", row.names = FALSE)
+write.csv(markers, "BAL-macrophages_Cluster-markers.csv", row.names = FALSE)
+write.csv(
+  markers[markers$gene %in% marker.genes, ], 
+  "BAL-macrophages_Cluster-markers_dotplot.csv", row.names = FALSE
+  )
 
 # Select genes based on FDR cutoff
 cutoff <- 1e-15
@@ -1592,7 +1650,7 @@ result$Score <- as.numeric(result$Score)
 result$map <- unlist(
   lapply(stringr::str_split(result$Overlapping_Genes, ","), length)
 )
-result$geneRatio <- result$map / result$bg
+result$geneRatio <- round(result$map / result$bg, 3)
 
 # Order result by Score
 result$cluster <- factor(result$cluster, levels(object$Cluster))
@@ -1634,19 +1692,25 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_TF-enrichment.pdf", width = 12, height = 3
+  "BAL-macrophages_TF-enrichment.png", width = 12, height = 3
 )
+write.csv(
+  result[, c(7,3,2,4,8,9,10,5,6,1)], 
+  "BAL-macrophages_TF-enrichment.csv", row.names = FALSE
+  )
 
 # ------------------------------------------------------------------------------
 # Enrichment of COVID-19 gene sets
 
 # Retrieve gene set dictionary
-con <- "https://nubes.helmholtz-berlin.de/s/25ZGCXAHdBffZCP/download"
-file <- "~/Downloads/genesets.xlsx"
-download.file(url = con, destfile = file)
+file <- tempfile()
+download.file(
+  "https://nubes.helmholtz-berlin.de/s/25ZGCXAHdBffZCP/download", file
+)
 dictionary <- readxl::read_excel(file)
 names(dictionary) <- c("ref", "term", "disease", "gene")
 
+# Select disease and gene set size
 key <- "COVID-19"
 n <- 50
 
@@ -1774,7 +1838,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_COVID-19-geneset-enrichment.pdf", width = 11, height = 6
+  "BAL-macrophages_COVID-19-geneset-enrichment.png", width = 11, height = 6
 )
 
 # Module scores ================================================================
@@ -1868,7 +1932,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_COVID-19-geneset-score-umap.pdf", width = 10, height = 6
+  "BAL-macrophages_COVID-19-geneset-score-umap.png", width = 10, height = 6
 )
 
 # 2. Violin plots as cluster-based population summaries
@@ -1962,19 +2026,13 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_COVID-19-geneset-score-violins.pdf", width = 12, height = 8
+  "BAL-macrophages_COVID-19-geneset-score-violins.png", width = 12, height = 8
 )
 
 # ------------------------------------------------------------------------------
 # Enrichment of fibrosis gene sets
 
-# Retrieve gene set dictionary
-con <- "https://nubes.helmholtz-berlin.de/s/25ZGCXAHdBffZCP/download"
-file <- "~/Downloads/genesets.xlsx"
-download.file(url = con, destfile = file)
-dictionary <- readxl::read_excel(file)
-names(dictionary) <- c("ref", "term", "disease", "gene")
-
+# Select disease and gene set size
 key <- "IPF"
 n <- 50
 
@@ -2105,7 +2163,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_IPF-geneset-enrichment.pdf", width = 11, height = 6
+  "BAL-macrophages_IPF-geneset-enrichment.png", width = 11, height = 6
 )
 
 # Module scores ================================================================
@@ -2198,7 +2256,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_IPF-geneset-score-umap.pdf", width = 12, height = 6
+  "BAL-macrophages_IPF-geneset-score-umap.png", width = 12, height = 6
 )
 
 # 2. Violin plots as cluster-based population summaries
@@ -2293,16 +2351,13 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "BAL-macrophages_IPF-geneset-score-violins.pdf", width = 12, height = 6
+  "BAL-macrophages_IPF-geneset-score-violins.png", width = 12, height = 6
 )
 
 # ------------------------------------------------------------------------------
-# Save dataset to disk (optional)
+# Save dataset to disk
 
-save <- FALSE
-if (save) {
-  saveRDS(object, "BAL-macrophages.Rds")
-}
+saveRDS(object, "BAL-macrophages.Rds")
 
 # end of document
 ################################################################################
