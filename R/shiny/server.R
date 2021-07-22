@@ -35,7 +35,7 @@ server <- function(input, output, session) {
     shiny::req(rv$bal)
     plot.embedding(
       rv$bal, coldata = input$bal_embedding_metadata_coldata,
-      pt.size = 0.1
+      brush = rv$bal_brush, pt.size = 0.1
       )
   })
   # Select coldata
@@ -49,6 +49,13 @@ server <- function(input, output, session) {
       multiple = FALSE
     )
   })
+  # Brush points
+  shiny::observeEvent(input$bal_embedding_metadata_brush, {
+    rv$bal_brush <- input$bal_embedding_metadata_brush
+  })
+  shiny::observeEvent(input$bal_embedding_metadata_dblclick, {
+    rv$bal_brush <- NULL
+  })
   
   # Embedding expression =======================================================
   # Plot 
@@ -56,10 +63,20 @@ server <- function(input, output, session) {
     shiny::req(rv$bal)
     plot.embedding(
       rv$bal, coldata = input$bal_embedding_expression_coldata, 
-      pt.size = 0.1
+      brush = rv$bal_brush, pt.size = 0.1
       )
   })
   # Select coldata
+  output$bal_embedding_expression_coldata <- shiny::renderUI({
+    shiny::req(rv$bal)
+    shiny::selectizeInput(
+      inputId  = "bal_embedding_expression_coldata",
+      label    = "Select gene",
+      choices  = NULL,
+      multiple = FALSE
+    )
+  })
+  # Brush points
   shiny::observe({
     shiny::req(rv$bal)
     choices <- rownames(rv$bal@assays$RNA@data)
@@ -71,7 +88,13 @@ server <- function(input, output, session) {
       server  = TRUE
     )
   })
-  
+  output$bal_embedding_metadata_brush_info <- shiny::renderUI({
+    shiny::req(rv$bal)
+    shiny::p(paste(
+      "Brush over points to zoom. Double click to return.",
+      "Left panel controls zoom behavior in both panels."
+      ))
+  })
   # ----------------------------------------------------------------------------
   # BAL macrophages
   
