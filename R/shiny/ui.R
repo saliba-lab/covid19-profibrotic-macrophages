@@ -7,6 +7,10 @@ options(
   spinner.color        = "#0dc5c1"
 )
 
+# Load heler functions
+source("utils.R")
+source("scatterplot.R")
+
 # Main function
 ui <- shiny::fluidPage(
   theme = shinythemes::shinytheme(theme = "flatly")
@@ -17,6 +21,8 @@ ui <- shiny::fluidPage(
       "SARS-CoV-2 infection triggers profibrotic",
       "macrophage responses and lung fibrosis"
     )
+    , 
+    selected = "Stimulated monocytes"
     ,
     # --------------------------------------------------------------------------
     # BAL
@@ -112,13 +118,44 @@ ui <- shiny::fluidPage(
     # BAL macrophages
     shiny::tabPanel(
       title = "BAL macrophages"
-    )
+      ,
+      datasetInput("balmac")
+      ,
+      # Navigation list
+      shiny::navlistPanel(
+        well = FALSE, widths = c(2, 10)
+        ,
+        "Navigation"
+        ,
+        shiny::tabPanel(
+          title = "Overview",
+          scatterUI("balmac_meta"),
+          scatterUI("balmac_expr")
+        )
+      )
+    ) # tabPanel
     ,
     # --------------------------------------------------------------------------
     # Stimulated monocytes
     shiny::tabPanel(
       title = "Stimulated monocytes"
-    )
+      ,
+      datasetInput("Monocytes")
+      ,
+      # Navigation list
+      shiny::navlistPanel(
+        well = FALSE, widths = c(2, 10)
+        ,
+        "Navigation"
+        ,
+        shiny::tabPanel(
+          title = "Overview",
+          scatterUI("mono_meta"),
+          scatterUI("mono_expr")
+        )
+      )
+    ) # tabPanel
+    
   )
   # navbarPage
 )

@@ -1,9 +1,6 @@
 ################################################################################
 # Shiny dashboard - Server calculations
 
-# Load heler functions
-source("utils.R")
-
 # Main function
 server <- function(input, output, session) {
   
@@ -75,9 +72,22 @@ server <- function(input, output, session) {
   # ----------------------------------------------------------------------------
   # BAL macrophages
   
+  # Load monocyte data on click
+  datasetServer(id = "balmac", datapath = "../../data/BAL.Rds", rv)
+  
+  # Create scatterplot
+  scatterServer(id = "balmac_meta", key = "balmac", rv, "Metadata")
+  scatterServer(id = "balmac_expr", key = "balmac", rv, "Gene Expression")
+  
   # ----------------------------------------------------------------------------
   # Monocytes
   
+  # Load monocyte data on click
+  datasetServer(id = "Monocytes", datapath = "../../data/Monocytes.Rds", rv)
+  
+  # Create scatterplot
+  scatterServer(id = "mono_meta", key = "Monocytes", rv, "Metadata")
+  scatterServer(id = "mono_expr", key = "Monocytes", rv, "Gene Expression")
 }
 # server
 
