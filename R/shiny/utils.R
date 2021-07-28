@@ -4,22 +4,25 @@
 # ------------------------------------------------------------------------------
 #' Plot low dimensional embedding
 #' 
-#' @object The Seurat object to pull data from
+#' @object    The Seurat object to pull data from
 #' @embedding Name of the low-dimensional embedding
-#' @coldata Gene name or metadata slot
-#' @pt.size Pointsize
+#' @coldata   Gene name or metadata slot
+#' @brush     Brushed points (xmin, xmax, ymin, ymax)
+#' @pt.size   Pointsize
 #' 
 plot.embedding <- function(
   object,
   embedding = tail(names(object@reductions), 1),
-  coldata,
+  coldata = "",
+  brush = NULL,
   pt.size   = 1
 ) {
   stopifnot(!is.null(coldata))
   # Fetch data from object
   data <- data.frame(
     x = object@reductions[[embedding]]@cell.embeddings[, 1],
-    y = object@reductions[[embedding]]@cell.embeddings[, 2]
+    y = object@reductions[[embedding]]@cell.embeddings[, 2],
+    row.names = colnames(object)
   )
   # Convert gene names
   if (coldata %in% object@misc$features[[2]]) {
@@ -51,6 +54,18 @@ plot.embedding <- function(
     ann_cols <- NULL
   }
   
+  # Subset data based on cells
+  if (is.null(brush)) {
+    xlim <- NULL
+    ylim <- NULL
+  } else {
+    xlim <- ggplot2::xlim(brush$xmin, brush$xmax)
+    ylim <- ggplot2::ylim(brush$ymin, brush$ymax)
+  }
+  
+  # Order data
+  data <- data[order(data$col), ]
+  
   # Plot
   ggplot2::ggplot(data, ggplot2::aes(x = x, y = y, col = col)) +
     ggplot2::geom_point(size = pt.size) +
@@ -60,7 +75,9 @@ plot.embedding <- function(
     ggplot2::guides(
       color = color_guide
     ) +
-    ann_cols
+    ann_cols +
+    xlim +
+    ylim
 }
 
 # ------------------------------------------------------------------------------

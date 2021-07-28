@@ -67,7 +67,14 @@ ui <- shiny::fluidPage(
             width = 6, offset = 0
             ,
             # Plot
-            shiny::plotOutput("bal_embedding_metadata")
+            shiny::plotOutput(
+              outputId = "bal_embedding_metadata",
+              brush    = shiny::brushOpts(
+                id = "bal_embedding_metadata_brush",
+                resetOnNew = TRUE
+              ),
+              dblclick = "bal_embedding_metadata_dblclick"
+            )
             ,
             # Left side
             shiny::column(
@@ -79,6 +86,8 @@ ui <- shiny::fluidPage(
             # Right side
             shiny::column(
               width = 6, offset = 0
+              ,
+              shiny::uiOutput("bal_embedding_metadata_brush_info")
             )
           )
           ,
@@ -87,18 +96,13 @@ ui <- shiny::fluidPage(
             width = 6, offset = 0
             ,
             # Plot
-            shiny::plotOutput("bal_embedding_expression")
+            shiny::plotOutput(outputId = "bal_embedding_expression")
             ,
             # Left side
             shiny::column(
               width = 6, offset = 0
               ,
-              shiny::selectizeInput(
-                inputId  = "bal_embedding_expression_coldata",
-                label    = "Select gene",
-                choices  = NULL,
-                multiple = FALSE
-              )
+            shiny::uiOutput("bal_embedding_expression_coldata")
             )
             ,
             # Right side
