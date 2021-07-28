@@ -7,7 +7,7 @@ options(
   spinner.color        = "#0dc5c1"
 )
 
-# Load heler functions
+# Load helper functions
 source("utils.R")
 source("scatterplot.R")
 
@@ -29,29 +29,7 @@ ui <- shiny::fluidPage(
     shiny::tabPanel(
       title = "BAL"
       ,
-      # Top row
-      shiny::fluidRow(
-        # Column
-        shiny::column(
-          width = 1, offset = 0.5
-          ,
-          shiny::actionButton(
-            inputId = "load_bal",
-            label   = "Load BAL data", 
-            icon = shiny::icon("database")
-          )
-        )
-        ,
-        # Column
-        shiny::column(
-          width = 11, offset = 0.5
-          ,
-          shinycssloaders::withSpinner(
-            shiny::verbatimTextOutput("bal_shape"), 
-            type = 5, size = 0.5, proxy.height = "50px"
-          )
-        )
-      )
+      datasetInput("bal")
       ,
       # Navigation list
       shiny::navlistPanel(
@@ -60,60 +38,9 @@ ui <- shiny::fluidPage(
         "Navigation"
         ,
         shiny::tabPanel(
-          title = "Overview"
-          ,
-          # Metadata on embedding
-          shiny::column(
-            width = 6, offset = 0
-            ,
-            # Plot
-            shiny::plotOutput(
-              outputId = "bal_embedding_metadata",
-              brush    = shiny::brushOpts(
-                id = "bal_embedding_metadata_brush",
-                resetOnNew = TRUE
-              ),
-              dblclick = "bal_embedding_metadata_dblclick"
-            )
-            ,
-            # Left side
-            shiny::column(
-              width = 6, offset = 0
-              ,
-              shiny::uiOutput("bal_embedding_metadata_coldata")
-            )
-            ,
-            # Right side
-            shiny::column(
-              width = 6, offset = 0
-              ,
-              shiny::uiOutput("bal_embedding_metadata_brush_info")
-            )
-          )
-          ,
-          # Gene expression on embedding
-          shiny::column(
-            width = 6, offset = 0
-            ,
-            # Plot
-            shiny::plotOutput(outputId = "bal_embedding_expression")
-            ,
-            # Left side
-            shiny::column(
-              width = 6, offset = 0
-              ,
-            shiny::uiOutput("bal_embedding_expression_coldata")
-            )
-            ,
-            # Right side
-            shiny::column(
-              width = 6, offset = 0
-            )
-          )
-        )
-        ,
-        shiny::tabPanel(
-          title = "Differential expression"
+          title = "Overview",
+          scatterUI("bal_meta"),
+          scatterUI("bal_expr")
         )
       )
     )
@@ -137,7 +64,7 @@ ui <- shiny::fluidPage(
           scatterUI("balmac_expr")
         )
       )
-    ) # tabPanel
+    )
     ,
     # --------------------------------------------------------------------------
     # Stimulated monocytes
@@ -158,7 +85,20 @@ ui <- shiny::fluidPage(
           scatterUI("mono_expr")
         )
       )
-    ) # tabPanel
+    )
+    ,
+    # --------------------------------------------------------------------------
+    # App Info
+    shiny::tabPanel(
+      title = "App Info"
+      ,
+      shiny::h3("General"),
+      shiny::p("This app contains three scRNA-seq datasets. To start browsing, 
+               open any tab and select the 'Load data' button.")
+      ,
+      shiny::h3("Zooming"),
+      shiny::p("Brush over points to zoom. Double click to return.")
+    )
     
   )
   # navbarPage

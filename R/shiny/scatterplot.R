@@ -13,8 +13,10 @@ scatterUI <- function(id) {
     # Plot
     shiny::plotOutput(
       outputId = shiny::NS(id, "plot"), 
-      brush    = shiny::brushOpts(id = "plot.brush"),
-      dblclick = "plot.dblclick"
+      brush    = shiny::brushOpts(
+        id = shiny::NS(id, "plot.brush"), resetOnNew = TRUE
+        ),
+      dblclick = shiny::NS(id, "plot.dblclick")
       )
     ,
     # Left side
@@ -25,6 +27,11 @@ scatterUI <- function(id) {
         inputId = shiny::NS(id, "coldata"), 
         label   = "Select cell-specific metadata", choices = NULL
         )
+      ,
+      shiny::selectInput(
+        inputId = shiny::NS(id, "embedding"),
+        label   = "Select low-dimensional embedding", choices = NULL
+      )
     )
     ,
     # Right side
@@ -51,8 +58,8 @@ scatterServer <- function(id, key, rv, type) {
     output$plot <- shiny::renderPlot({
       shiny::req(rv[[key]])
       plot.embedding(
-        rv[[key]], coldata = input$coldata,
-        pt.size = input$pointsize
+        rv[[key]], embedding = input$embedding, coldata = input$coldata,
+        pt.size = input$pointsize, brush = rv[[paste("brush", key, "_")]]
       )
     })
     # Select coldata
@@ -69,6 +76,17 @@ scatterServer <- function(id, key, rv, type) {
         session, "coldata", 
         choices  = choices
         )
+      shiny::updateSelectizeInput(
+        session, "embedding", 
+        choices  = names(rv[[key]]@reductions)
+      )
+    })
+    # Zooming
+    shiny::observeEvent(input$plot.brush, {
+      rv[[paste("brush", key, "_")]] <- input$plot.brush
+    })
+    shiny::observeEvent(input$plot.dblclick, {
+      rv[[paste("brush", key, "_")]] <- NULL
     })
   })
 }
