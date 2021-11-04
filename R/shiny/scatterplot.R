@@ -69,7 +69,7 @@ scatterServer <- function(id, key, rv, type) {
         choices <- names(rv[[key]]@meta.data)
       } else {
         choices <- convertFeatures(
-          rownames(rv[[key]]), convtab = ds@misc$features, 1, 2
+          rownames(rv[[key]]), convtab = rv[[key]]@misc$features, 1, 2
           )
       }
       shiny::updateSelectizeInput(

@@ -11,7 +11,7 @@ options(
 source("utils.R")
 source("scatterplot.R")
 
-# Main function
+# User interface function
 ui <- shiny::fluidPage(
   theme = shinythemes::shinytheme(theme = "flatly")
   ,
@@ -31,7 +31,6 @@ ui <- shiny::fluidPage(
       ,
       datasetInput("bal")
       ,
-      # Navigation list
       shiny::navlistPanel(
         well = FALSE, widths = c(2, 10)
         ,
@@ -52,7 +51,6 @@ ui <- shiny::fluidPage(
       ,
       datasetInput("balmac")
       ,
-      # Navigation list
       shiny::navlistPanel(
         well = FALSE, widths = c(2, 10)
         ,
@@ -73,7 +71,6 @@ ui <- shiny::fluidPage(
       ,
       datasetInput("Monocytes")
       ,
-      # Navigation list
       shiny::navlistPanel(
         well = FALSE, widths = c(2, 10)
         ,
