@@ -6,3 +6,5 @@ This repository contains the code used to analyze the phenotype of macrophages f
 
 ## Raw data
 Raw data (matrix.mtx, features.tsv, barcodes.tsv) is stored on the Nubes cloud and downloaded directly via R.
+
+License: [MIT](https://github.com/OliverDietrich/COVID-19_profibrotic-macrophage-responses/blob/main/LICENSE)
