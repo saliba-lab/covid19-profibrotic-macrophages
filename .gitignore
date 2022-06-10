@@ -3,3 +3,11 @@
 # R data (large files, e.g. Rds)
 data/
 R/shiny
+.Rproj.user
+.Rhistory
+
+# Analysis files
+analysis
+
+# Conda environment
+envs/
