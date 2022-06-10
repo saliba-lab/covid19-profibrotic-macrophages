@@ -12,3 +12,16 @@ Count matrices (matrix.mtx, features.tsv, barcodes.tsv) as well as Seurat object
 Count matrices are downloaded directly via R as part of the analysis workflow, manual download is not necessary. 
 
 License: [MIT](https://github.com/OliverDietrich/COVID-19_profibrotic-macrophage-responses/blob/main/LICENSE)
+
+## Code execution
+To run the analyses please run the following steps:
+
+1. Clone the git repository
+> git clone https://github.com/OliverDietrich/covid19.macrophages.git
+> cd covid19.macrophages
+1. Install packages via conda
+> bash env.sh
+1. Run monocyte analysis
+> Rscript R/BAL/download.R
+> Rscript R/BAL/setup.R
+> Rscript R/BAL/qc.R
