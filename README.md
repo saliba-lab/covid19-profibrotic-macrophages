@@ -17,8 +17,8 @@ License: [MIT](https://github.com/OliverDietrich/COVID-19_profibrotic-macrophage
 To run the analyses please run the following steps:
 
 1. Clone the git repository
-> git clone https://github.com/OliverDietrich/covid19.macrophages.git
-> cd covid19.macrophages
+   > git clone https://github.com/OliverDietrich/covid19.macrophages.git
+   > cd covid19.macrophages
 1. Install packages via conda
 > bash env.sh
 1. Run monocyte analysis
