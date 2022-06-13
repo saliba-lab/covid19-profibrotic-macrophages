@@ -22,7 +22,7 @@ To run the analyses please run the following steps:
    > cd covid19.macrophages
 1. Install packages via conda
    > bash env.sh
-1. Run monocyte analysis
+1. Run BAL analysis
    > Rscript R/BAL/download.R
 
    > Rscript R/BAL/setup.R
