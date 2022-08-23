@@ -1,8 +1,7 @@
 # List of files to ignore
 
-# R data (large files, e.g. Rds)
+# Data (large files, e.g. Rds)
 data/
-R/shiny
 
 # Analysis output
 analysis/
@@ -12,4 +11,4 @@ analysis/
 .Rproj.user
 
 # Conda environments
-envs
+envs/
