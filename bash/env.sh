@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Update conda
-conda update -n base conda
+conda update -n base conda -y
 
 # Create conda environment
 mkdir envs
