@@ -7,21 +7,21 @@ This repository contains the code used to analyze the phenotype of macrophages f
 ## Analysis workflow
 To run the analyses please run the following steps:
 
-1. Clone the git repository
-```
-git clone https://github.com/OliverDietrich/covid19.macrophages.git
-cd covid19.macrophages
-```
-1. Install packages via conda
-```
-conda env create -f envs/default.yml
-conda activate covid19-macrophages
-```
-1. Run analyses
-```
-Rscript R/BAL-macrophages.R
-Rscript R/Monocytes.R
-```
+   1. Clone the git repository
+   ```
+   git clone https://github.com/OliverDietrich/covid19.macrophages.git
+   cd covid19.macrophages
+   ```
+   1. Install packages via conda
+   ```
+   conda env create -f envs/default.yml
+   conda activate covid19-macrophages
+   ```
+   1. Run analyses
+   ```
+   Rscript R/BAL-macrophages.R
+   Rscript R/Monocytes.R
+   ```
 
 ## Data accessibility
 Count matrices (matrix.mtx, features.tsv, barcodes.tsv) as well as Seurat objects are stored on the Nubes cloud service
