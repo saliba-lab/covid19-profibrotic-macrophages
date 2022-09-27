@@ -21,3 +21,4 @@ dependencies:
   - r-ggalluvial
   - r-ggnewscale
   - leidenalg=0.8.4
+  - pandas
