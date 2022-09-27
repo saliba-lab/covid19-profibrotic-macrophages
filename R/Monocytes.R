@@ -2,8 +2,8 @@
 # scRNA-seq analysis of stimulated monocytes
 
 # Set working directory to save output
-d <- "~/Monocytes"
-dir.create(d)
+d <- "analysis/monocytes/"
+dir.create(d, recursive = TRUE)
 setwd(d)
 
 # ------------------------------------------------------------------------------
@@ -65,21 +65,19 @@ lapply(
   )
 
 # Create Seurat object and remove raw matrix
-object <- Seurat::CreateSeuratObject(
-  counts  = matrix, 
-  assay   = "RNA",
-  project = "Stimulated monocytes"
+object <- SeuratObject::CreateSeuratObject(
+  counts = matrix, assay = "RNA", project = "Stimulated monocytes"
 )
 rm(matrix)
 
 # Add viral counts and hashtags as assays
-object@assays[["SCoV2"]] <- Seurat::CreateAssayObject(counts = scov2)
+object[["SCoV2"]] <- SeuratObject::CreateAssayObject(counts = scov2)
 rm(scov2)
 
-object@assays[["HTO"]] <- Seurat::CreateAssayObject(counts = hashtags)
+object[["HTO"]] <- SeuratObject::CreateAssayObject(counts = hashtags)
 rm(hashtags)
 
-object@assays[["ADT"]] <- Seurat::CreateAssayObject(counts = adt)
+object[["ADT"]] <- SeuratObject::CreateAssayObject(counts = adt)
 rm(adt)
 
 # Add donors as meta data
@@ -221,7 +219,7 @@ object <- Seurat::RunUMAP(object = object, dims = 1:30, seed.use = 1993)
 set.seed(1993)
 object <- Seurat::FindNeighbors(object = object, dims = 1:30)
 object <- Seurat::FindClusters(
-  object = object, algorithm = 4, resolution = 0.9
+  object = object, algorithm = 4, resolution = 0.9, 
   )
 
 # ------------------------------------------------------------------------------
@@ -322,7 +320,7 @@ object <- Seurat::SCTransform(
 object <- Seurat::RunPCA(object = object, npcs = 30, seed.use = 1993)
 
 # UMAP
-object <- Seurat::RunUMAP(object = object, dims = 1:30, seed.use = 1993)
+object <- Seurat::RunUMAP(object = object, dims = 1:30, seed.use = 1990)
 
 # ------------------------------------------------------------------------------
 # Show experimental conditions
@@ -357,8 +355,8 @@ data$col <- object@meta.data$condition
 
 # Set text location
 ann <- data.frame(
-  x = c( 4,  3,  3, 10),
-  y = c( 4, -1, -4, -2),
+  x = c(  4, 3, 3, 10),
+  y = c( -4, 1, 4, -2),
   col = levels(data$col)
 )
 
@@ -405,7 +403,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "Monocytes_Condition.png", width = 10, height = 6
+  "Monocytes_Condition.png", width = 10, height = 6, bg = "white"
 )
 
 # ------------------------------------------------------------------------------
@@ -462,7 +460,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "Monocytes_viral-mRNAs.png", width = 10, height = 6
+  "Monocytes_viral-mRNAs.png", width = 10, height = 6, bg = "white"
 )
 
 # ------------------------------------------------------------------------------
@@ -527,7 +525,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "Monocytes_Donors.png", width = 10, height = 6
+  "Monocytes_Donors.png", width = 10, height = 6, bg = "white"
 )
 
 # ------------------------------------------------------------------------------
@@ -626,7 +624,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "Monocytes_marker-dotplot.png", width = 12, height = 6
+  "Monocytes_marker-dotplot.png", width = 12, height = 6, bg = "white"
 )
 
 # ------------------------------------------------------------------------------
@@ -696,7 +694,7 @@ ggplot2::ggplot(
 
 # Save plot
 ggplot2::ggsave(
-  "Monocytes_marker-umap.png", width = 12, height = 4.5
+  "Monocytes_marker-umap.png", width = 12, height = 4.5, bg = "white"
 )
 
 # ------------------------------------------------------------------------------
@@ -718,7 +716,7 @@ for (i in names(markers)) {
 }
 markers <- dplyr::bind_rows(as.list(markers))
 markers$gene <- features$SYMBOL[match(markers$ENSEMBL, features$ENSEMBL)]
-markers <- markers[, c(6,9,7,1,2,8,3,4,5)]
+markers <- markers[, c("ENSEMBL", "gene", "cluster", "FDR", "p.value")]
 
 # Save marker table
 write.csv(markers, "Monocytes_Condition-markers.csv", row.names = FALSE)

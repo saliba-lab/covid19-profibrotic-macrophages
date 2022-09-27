@@ -1,0 +1,24 @@
+name: covid19-macrophages
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - bioconductor-scran
+  - bioconductor-batchelor
+  - bioconductor-clusterProfiler
+  - bioconductor-slingshot
+  - r-seurat
+  - r-seuratobject
+  - r-leiden
+  - r-viridis
+  - r-pheatmap
+  - r-readr
+  - r-readxl
+  - r-uwot
+  - r-rgl
+  - r-ggpubr
+  - r-ggalluvial
+  - r-ggnewscale
+  - leidenalg=0.8.4
+  - pandas

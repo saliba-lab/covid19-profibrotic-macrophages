@@ -10,8 +10,5 @@ analysis/
 .Rhistory
 .Rproj.user
 
-# Conda environments
-envs/
-
 # Re-structured environment
 bin/
