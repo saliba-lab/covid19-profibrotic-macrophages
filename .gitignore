@@ -12,3 +12,6 @@ analysis/
 
 # Conda environments
 envs/
+
+# Re-structured environment
+bin/
