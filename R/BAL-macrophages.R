@@ -2,9 +2,11 @@
 # scRNA-seq analysis of BAL macrophages
 
 # Set working directory to save output
-d <- "~/BAL-macrophages"
+d <- "analysis/BAL-macrophages"
 dir.create(d)
 setwd(d)
+
+options(timeout = Inf)
 
 # ------------------------------------------------------------------------------
 # Download data from public repository
@@ -53,23 +55,21 @@ object <- Seurat::CreateSeuratObject(
 rm(matrix)
 
 # Add viral counts and hashtags as assays
-object@assays[["SCoV2"]] <- Seurat::CreateAssayObject(counts = scov2)
+object[["SCoV2"]] <- Seurat::CreateAssayObject(counts = scov2)
 rm(scov2)
 
 # Store features in the object
 object@misc$features <- features
 
 # Add patient metadata
-metadata <- dplyr::tibble(
-  dataset = c("C3", "C4", "C5", "C6", "C7", "D9", "E3", "E4"),
-  patient = c("Neph_X1", "C19-62", "C19-83", "C19-82", 
-              "C19-85", "C19-98", "C19-136", "C19-120"),
-  dpso    = c("day 14", "day 14", "day 7", "day 14", 
-              "day 25", "day 7", "day 25", "day 10"),
-  age     = c("51", "72", "56", "72", "63", "22", "62", "76"),
-  sex     = c("Female", "Male", "Female", "Male", 
-              "Male", "Male", "Female", "Male")
+f <- tempfile()
+download.file(
+  "https://nubes.helmholtz-berlin.de/s/XrM8igTzFTFSoio/download?path=%2F&files=metadata.xlsx&downloadStartSecret=3rqbggnaplr",
+  f
 )
+metadata <- readxl::read_excel(f)
+file.remove(f)
+
 object@meta.data <- cbind(
   object@meta.data, 
   metadata[stringr::str_split(colnames(object), "-", simplify = TRUE)[, 2], ]
