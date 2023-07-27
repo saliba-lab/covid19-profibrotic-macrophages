@@ -6,7 +6,7 @@ Thereafter, the scripts will be updated to include updated URLs for data downloa
 
 # Analysis of transcriptomic phenotypes of lung macrophages in severe COVID-19 and SARS-CoV-2 stimulated primary monocytes.
 
-This repository contains the code used to analyze the phenotype of macrophages from bronchoalveolar lavage (BAL) fluid  ([here](https://github.com/OliverDietrich/SARS-CoV-2-infection-triggers-profibrotic-macrophage-responses-and-lung-fibrosis/blob/main/R/BAL-macrophages.R)) as well as primary monocytes stimulated with, among others, SARS-CoV-2 ([here](https://github.com/OliverDietrich/SARS-CoV-2-infection-triggers-profibrotic-macrophage-responses-and-lung-fibrosis/blob/main/R/Monocytes.R)) as shown in 
+This repository contains the code used to analyze the phenotype of macrophages from bronchoalveolar lavage ([BAL](https://github.com/OliverDietrich/SARS-CoV-2-infection-triggers-profibrotic-macrophage-responses-and-lung-fibrosis/blob/main/R/BAL-macrophages.R)) fluid as well as [primary monocytes](https://github.com/OliverDietrich/SARS-CoV-2-infection-triggers-profibrotic-macrophage-responses-and-lung-fibrosis/blob/main/R/Monocytes.R) stimulated with, among others, SARS-CoV-2 as shown in 
 
 [Wendisch, D., Dietrich, O., Mari, T., von Stillfried, S., SARS-CoV-2 infection triggers profibrotic macrophage responses and lung fibrosis, _Cell_ (2021), doi: https://doi.org/10.1016/j.cell.2021.11.033.](https://www.cell.com/cell/fulltext/S0092-8674(21)01383-0)
 
