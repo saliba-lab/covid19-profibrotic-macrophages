@@ -1,5 +1,5 @@
 ## Issue
-Due to problems with the Nubes cloud service (nubes.helmholtz-berlin.de) the data was currently unavailable.
+Due to problems with the Nubes cloud service (nubes.helmholtz-berlin.de) the data was temporarily unavailable.
 Raw data (count table) for both BAL samples and monocytes is available via DESY.
 Soon, the Seurat objects including normalized data, embeddings and annotations will be available as well.
 Thereafter, the scripts will be updated to include updated URLs for data download.
