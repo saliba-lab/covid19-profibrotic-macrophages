@@ -1,103 +1,93 @@
-################################################################################
-# scRNA-seq analysis of stimulated monocytes
+# Libraries --------------------------------------------------------------------
+library(Seurat)
+library(dplyr)
 
-# Set working directory to save output
-d <- "analysis/monocytes/"
-dir.create(d, recursive = TRUE)
-setwd(d)
+# Variables --------------------------------------------------------------------
+url <- list(
+  "counts"="https://syncandshare.desy.de/index.php/s/TMPWKmQz9rHSmHm",
+  "donor-1"="https://syncandshare.desy.de/index.php/s/yr9Q98NP9nYnGW3",
+  "donor-2"="https://syncandshare.desy.de/index.php/s/gjZW8tJr9BYxM62"
+)
+url <- lapply(url, paste0, "/download")
 
-# ------------------------------------------------------------------------------
-# Download data from public repository
+data_path <- "data/monocytes/"
+dir.create(data_path, recursive = TRUE)
+files <- list(
+  "counts"="data/monocytes/counts.h5",
+  "donor-1"="data/monocytes/donor-1.tsv",
+  "donor-2"="data/monocytes/donor-2.tsv"
+)
 
-# Barcodes
-con <- url("https://nubes.helmholtz-berlin.de/s/kr3pDEnTs8Zig59/download")
-barcodes <- readLines(gzcon(con))
+plot_dir <- "results/"
+dir.create(plot_dir)
 
-# Features
-con <- url("https://nubes.helmholtz-berlin.de/s/kDDPYYTjj7CMfEB/download")
-features <- readr::read_tsv(
-  gzcon(con), col_names = c("ENSEMBL", "SYMBOL", "TYPE")
-  )
+# Download data ----------------------------------------------------------------
+for (name in names(files)) {
+  file <- files[[name]]
+  if (file.exists(file)) {
+    print(paste("File", file, "already exists and will be skipped..."))
+    next
+  } else {
+    print(paste("Downloading", name))
+    download.file(url[[name]], file)
+  }
+}
 
-# Matrix
-con <- url("https://nubes.helmholtz-berlin.de/s/ecHWyJy3eXxgYYc/download")
-matrix <- as(Matrix::readMM(gzcon(con)), "dgCMatrix")
-colnames(matrix) <- barcodes
-rownames(matrix) <- features$ENSEMBL
-
+# Read data --------------------------------------------------------------------
+# Counts
+counts <- Read10X_h5(files$counts)
 # Donor information
 donors <- list(
-  "1" = readr::read_tsv(gzcon(url(
-    "https://nubes.helmholtz-berlin.de/s/xsYCzt6wpMDZafA/download"
-  ))),
-  "2" = readr::read_tsv(gzcon(url(
-    "https://nubes.helmholtz-berlin.de/s/FoGG7wAJnDaZAXe/download"
-  )))
+  "1" = read.table(files$`donor-1`, sep = "\t", header = TRUE),
+  "2" = read.table(files$`donor-2`, sep = "\t", header = TRUE)
 )
 donors[["2"]]$barcode <- stringr::str_replace(
   donors[["2"]]$barcode, "1", "2"
 )
 donors <- dplyr::bind_rows(donors)
+# Features
 
-# Check overlap between donors classification & matrix
-table(donors$barcode == barcodes)
 
-# ------------------------------------------------------------------------------
-# Re-shape data into Seurat object
+# Create Seurat object ---------------------------------------------------------
 
-# Separate matrices of monocyte gene, SARS-CoV-2 gene and HTO-derived counts
-adt <- matrix[
-  features$ENSEMBL[which(features$TYPE == "Antibody Capture" & 
-                           !stringr::str_detect(features$ENSEMBL, "Hashtag"))]
-  , ]
-hashtags <- matrix[which(stringr::str_detect(rownames(matrix), "Hashtag")), ]
-scov2 <- matrix[which(stringr::str_detect(rownames(matrix), "SCoV2")), ]
-matrix <- matrix[which(stringr::str_detect(rownames(matrix), "ENSG")), ]
+# Viral genes
+index <- which(stringr::str_detect(rownames(counts$`Gene Expression`), "SCoV2"))
+counts$viral <- counts$`Gene Expression`[index, ]
 
-# Compare matrix size
-lapply(
-  c("Gene expression"       = matrix, 
-    "SARS-CoV-2 mRNAs"      = scov2, 
-    "Hashtags"              = hashtags,
-    "Antibody-derived tags" = adt
-    ), 
-  dim
-  )
+# Human genes
+index <- which(!stringr::str_detect(rownames(counts$`Gene Expression`),"SCoV2"))
+counts$human <- counts$`Gene Expression`[index, ]
+counts$`Gene Expression` <- NULL
 
-# Create Seurat object and remove raw matrix
+# Hashtags
+index <- which(stringr::str_detect(rownames(counts$`Antibody Capture`),"Hash"))
+counts$hto <- counts$`Antibody Capture`[index, ]
+
+# Antibodies
+index <- which(!stringr::str_detect(rownames(counts$`Antibody Capture`),"Hash"))
+counts$adt <- counts$`Antibody Capture`[index, ]
+counts$`Antibody Capture` <- NULL
+
+# Create Seurat object
 object <- SeuratObject::CreateSeuratObject(
-  counts = matrix, assay = "RNA", project = "Stimulated monocytes"
+  counts = counts$human, assay = "RNA", project = "Stimulated monocytes"
 )
-rm(matrix)
+# Add count assays
+object[["SCoV2"]] <- SeuratObject::CreateAssayObject(counts$viral)
+object[["HTO"]] <- SeuratObject::CreateAssayObject(counts$hto)
+object[["ADT"]] <- SeuratObject::CreateAssayObject(counts$adt)
+rm(counts) # remove unstructured raw data
 
-# Add viral counts and hashtags as assays
-object[["SCoV2"]] <- SeuratObject::CreateAssayObject(counts = scov2)
-rm(scov2)
+# Add meta data ----------------------------------------------------------------
 
-object[["HTO"]] <- SeuratObject::CreateAssayObject(counts = hashtags)
-rm(hashtags)
-
-object[["ADT"]] <- SeuratObject::CreateAssayObject(counts = adt)
-rm(adt)
-
-# Add donors as meta data
+# Add donors
 object@meta.data$donor <- as.character(c(
   "0" = "A", "1" = "B", "1/0" = "Doublet", "0/1" = "Doublet"
   )[donors$assignment])
 
-# Store features in the object
-object@misc$features <- features
+# Quality control --------------------------------------------------------------
 
-# ------------------------------------------------------------------------------
-# Quality control & filtering
-
-# Calculate proportion of mitochondrial gene counts
-mt_counts <- Matrix::colSums(object@assays$RNA@counts[
-  features$ENSEMBL[which(stringr::str_detect(features$SYMBOL, "^MT-"))]
-  , ]) 
-object@meta.data$percent.mt <- round(
-  mt_counts / object@meta.data$nCount_RNA * 100, 1
-  )
+object[["percent.mt"]] <- PercentageFeatureSet(object, pattern = "^MT-")
 
 # Set cell (column) filter
 cells <- rownames(object@meta.data)[which(
@@ -125,8 +115,7 @@ genes <- as.character(unlist(genes))
 # Apply filter
 object <- subset(object, cells = cells, features = genes)
 
-# ------------------------------------------------------------------------------
-# Normalize
+# Normalization ----------------------------------------------------------------
 
 # Hashtags
 object <- Seurat::NormalizeData(
@@ -144,8 +133,7 @@ object <- Seurat::SCTransform(
   variable.features.n = 2000
   )
 
-# ------------------------------------------------------------------------------
-# Demultiplex stimulation conditions from hashtags
+# Demultiplex hashtags ---------------------------------------------------------
 
 # Retrieve normalized hashtag counts
 set.seed(1993)
@@ -172,10 +160,10 @@ ggplot2::ggplot(
 
 # Select true labelling events
 df$HTO_max <- "Negative"
-df$HTO_max[df$Hashtag == "Hashtag6" & df$id == "3"] <- "6"
-df$HTO_max[df$Hashtag == "Hashtag7" & df$id == "3"] <- "7"
-df$HTO_max[df$Hashtag == "Hashtag8" & df$id == "1"] <- "8"
-df$HTO_max[df$Hashtag == "Hashtag9" & df$id == "2"] <- "9"
+df$HTO_max[stringr::str_detect(df$Hashtag, "Hashtag6") & df$id == "3"] <- "6"
+df$HTO_max[stringr::str_detect(df$Hashtag, "Hashtag7") & df$id == "3"] <- "7"
+df$HTO_max[stringr::str_detect(df$Hashtag, "Hashtag8") & df$id == "1"] <- "8"
+df$HTO_max[stringr::str_detect(df$Hashtag, "Hashtag9") & df$id == "2"] <- "9"
 
 # Classification function
 classify <- function(x) {
@@ -189,7 +177,7 @@ classify <- function(x) {
 # Classification
 dat <- as.matrix(table(df$bc, df$HTO_max))
 dat <- dat[colnames(object), -5]
-object@meta.data$HTO_class <- factor(apply(dat, 1, classify))
+object$HTO_class <- factor(apply(dat, 1, classify))
 
 # Convert hashtags to stimulation conditions
 stimulation_hashtags <- c(
@@ -206,9 +194,9 @@ object@meta.data$condition <- factor(
   levels = c("Control", "SARS-CoV-2", "3p-hpRNA", "R848", "Negative", "Doublet")
   )
 
-# ------------------------------------------------------------------------------
-# Calculate low-dimensional embedding & clustering
+# Select high quality monocytes ------------------------------------------------
 
+# Calculate low-dimensional embedding & clustering
 # PCA
 object <- Seurat::RunPCA(object = object, npcs = 30, seed.use = 1993)
 
@@ -219,39 +207,36 @@ object <- Seurat::RunUMAP(object = object, dims = 1:30, seed.use = 1993)
 set.seed(1993)
 object <- Seurat::FindNeighbors(object = object, dims = 1:30)
 object <- Seurat::FindClusters(
-  object = object, algorithm = 4, resolution = 0.9, 
+  object = object, algorithm = 3, resolution = 0.9, 
   )
-
-# ------------------------------------------------------------------------------
-# Select high quality classical monocytes
 
 # Plot count depths
 cowplot::plot_grid(
   Seurat::FeaturePlot(
-    object, reduction = "umap", features = "nFeature_RNA", pt.size = 1
+    object, reduction = "umap", features = "nFeature_RNA", pt.size = .25
   ) +
     ggplot2::coord_fixed() +
-    ggplot2::theme_classic(base_size = 20) +
+    ggplot2::theme_void(base_size = 20) +
     viridis::scale_color_viridis(option = "A", direction = -1),
   Seurat::FeaturePlot(
-    object, reduction = "umap", features = "nCount_RNA", pt.size = 1
+    object, reduction = "umap", features = "nCount_RNA", pt.size = .25
   ) +
     ggplot2::coord_fixed() +
-    ggplot2::theme_classic(base_size = 20) +
+    ggplot2::theme_void(base_size = 20) +
     viridis::scale_color_viridis(option = "A", direction = -1)
 )
 
 # Plot clusters & percent mitochondrial counts
 cowplot::plot_grid(
-  Seurat::DimPlot(object, reduction = "umap", label = TRUE, pt.size = 1) +
+  Seurat::DimPlot(object, reduction = "umap", label = TRUE, pt.size = .25) +
     ggplot2::coord_fixed() +
-    ggplot2::theme_classic(base_size = 20) +
+    ggplot2::theme_void(base_size = 20) +
     ggplot2::guides(col = ggplot2::guide_none()),
   Seurat::FeaturePlot(
-    object, reduction = "umap", features = "percent.mt", pt.size = 1
+    object, reduction = "umap", features = "percent.mt", pt.size = .25
   ) +
     ggplot2::coord_fixed() +
-    ggplot2::theme_classic(base_size = 20) +
+    ggplot2::theme_void(base_size = 20) +
     viridis::scale_color_viridis(option = "A", direction = -1)
 )
 
@@ -259,22 +244,22 @@ cowplot::plot_grid(
 cowplot::plot_grid(
   Seurat::FeaturePlot(
     object, reduction = "umap", 
-    features = features$ENSEMBL[features$SYMBOL == "S100A8"], pt.size = 1
+    features = "S100A8", pt.size = .25
   ) +
     ggplot2::coord_fixed() +
-    ggplot2::theme_classic(base_size = 20) +
+    ggplot2::theme_void(base_size = 20) +
     viridis::scale_color_viridis(option = "A", direction = -1),
   Seurat::FeaturePlot(
     object, reduction = "umap", 
-    features = features$ENSEMBL[features$SYMBOL == "CD14"], pt.size = 1
+    features = "CD14", pt.size = .25
   ) +
     ggplot2::coord_fixed() +
-    ggplot2::theme_classic(base_size = 20) +
+    ggplot2::theme_void(base_size = 20) +
     viridis::scale_color_viridis(option = "A", direction = -1)
 )
 
 # Select clusters
-monocyte_clusters <- c("5", "10", "18", "19")
+monocyte_clusters <- c("4", "9", "17", "18")
 object@meta.data$monocytes <- as.logical(
   object@meta.data$seurat_clusters %in% monocyte_clusters
 )
@@ -285,9 +270,6 @@ cells <- row.names(object@meta.data[which(
     !object@meta.data$condition %in% c("Doublet", "Negative")
   ), ])
 object <- subset(object, cells = cells)
-
-# ------------------------------------------------------------------------------
-# Filter genes & re-normalize
 
 # Set gene filter 
 genes <- list()
@@ -313,8 +295,7 @@ object <- Seurat::SCTransform(
   variable.features.n = 2000
 )
 
-# ------------------------------------------------------------------------------
-# Compute low dimensional embedding
+# Compute low dimensional embedding --------------------------------------------
 
 # PCA
 object <- Seurat::RunPCA(object = object, npcs = 30, seed.use = 1993)
@@ -322,14 +303,11 @@ object <- Seurat::RunPCA(object = object, npcs = 30, seed.use = 1993)
 # UMAP
 object <- Seurat::RunUMAP(object = object, dims = 1:30, seed.use = 1990)
 
-# ------------------------------------------------------------------------------
-# Show experimental conditions
+# Plot: Conditions -------------------------------------------------------------
 
 # Re-level factor
-object@meta.data$condition <- factor(
-  object@meta.data$condition, unique(object@meta.data$condition)[c(1,2,4,3)]
-  
-)
+cond_lvl <- c("Control","SARS-CoV-2","3p-hpRNA","R848")
+object$condition <- factor(as.character(object$condition), cond_lvl)
 
 # Choose colors
 cbPalette <- c(
@@ -351,13 +329,13 @@ object@misc$colors <- list(
 # Select data
 data <- tidyr::as_tibble(object@reductions$umap@cell.embeddings)
 names(data) <- c("x", "y")
-data$col <- object@meta.data$condition
+data$col <- object$condition
 
 # Set text location
 ann <- data.frame(
-  x = c(  4, 3, 3, 10),
-  y = c( -4, 1, 4, -2),
-  col = levels(data$col)
+  x = c(4, 9, 3,5),
+  y = c(1,-2,-4,4),
+  col = c("SARS-CoV-2", "R848", "Control", "3p-hpRNA")
 )
 
 # Plot
@@ -402,12 +380,10 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "Monocytes_Condition.png", width = 10, height = 6, bg = "white"
-)
+fn <- paste0(plot_dir, "Monocytes_Condition.png")
+ggplot2::ggsave(fn, width = 8, height = 6, bg = "white")
 
-# ------------------------------------------------------------------------------
-# Show SARS-CoV-2 counts
+# Plot: SCoV2 counts -----------------------------------------------------------
 
 # Select data
 data <- tidyr::as_tibble(object@reductions$umap@cell.embeddings)
@@ -423,11 +399,11 @@ ggplot2::ggplot(
     col   = col
   )
 ) +
-  ggplot2::geom_point(size = 3) +
+  ggplot2::geom_point(size = 2) +
   viridis::scale_color_viridis(option = "A", direction = -1, trans = "log10") +
   ggplot2::theme_void(base_size = 30) +
   ggplot2::theme(
-    legend.position = c(0.7, 0.2)
+    legend.position = c(0.7, 0.5)
   ) +
   ggplot2::guides(
     col = ggplot2::guide_colorbar(
@@ -459,12 +435,10 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "Monocytes_viral-mRNAs.png", width = 10, height = 6, bg = "white"
-)
+fn <- paste0(plot_dir, "Monocytes_viral-mRNAs.png")
+ggplot2::ggsave(fn, width = 8, height = 6, bg = "white")
 
-# ------------------------------------------------------------------------------
-# Show donors
+# Plot: Donors -----------------------------------------------------------------
 
 # Select colors
 color.rep <- c(
@@ -524,12 +498,10 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "Monocytes_Donors.png", width = 10, height = 6, bg = "white"
-)
+fn <- paste0(plot_dir, "Monocytes_Donors.png")
+ggplot2::ggsave(fn, width = 8, height = 6, bg = "white")
 
-# ------------------------------------------------------------------------------
-# Marker gene dotplot
+# Dotplot: Marker genes --------------------------------------------------------
 
 # Select genes
 genes <- list(
@@ -550,14 +522,8 @@ genes <- list(
 )
 genes <- as.character(unlist(genes))
 
-# Convert SYMBOLs to ENSEMBL IDs
-ids <- features$ENSEMBL[match(genes, features$SYMBOL)]
-ids <- ids[ids %in% rownames(object@assays$RNA@data) & !duplicated(ids)]
-
 # Tidy data for plotting
-data <- tidyr::as_tibble(t(as.matrix(object@assays$RNA@data[ids, ])))
-colnames(data) <- features$SYMBOL[match(ids, features$ENSEMBL)]
-
+data <- tidyr::as_tibble(t(as.matrix(object@assays$RNA@data[genes, ])))
 data$Cluster <- object@meta.data$condition
 
 data <- tidyr::gather(data, "Gene", "Expression", -Cluster)
@@ -623,20 +589,17 @@ ggplot2::ggplot(
   ggplot2::scale_size_area(max_size = 10)
 
 # Save plot
-ggplot2::ggsave(
-  "Monocytes_marker-dotplot.png", width = 12, height = 6, bg = "white"
-)
+fn <- paste0(plot_dir, "Monocytes_marker-dotplot.png")
+ggplot2::ggsave(fn, width = 12, height = 6, bg = "white")
 
-# ------------------------------------------------------------------------------
-# Show normalized gene expression
+# Plot: Marker gene expression -------------------------------------------------
 
 # Select data
 data <- tidyr::as_tibble(object@reductions$umap@cell.embeddings)
 names(data) <- c("x", "y")
 for (gene in genes) {
-  id <- features$ENSEMBL[match(gene, features$SYMBOL)]
-  if (id %in% rownames(object)) {
-    data[[gene]] <- object@assays$SCT@data[id, ]
+  if (gene %in% rownames(object)) {
+    data[[gene]] <- object@assays$SCT@data[gene, ]
   }
 }
 
@@ -693,12 +656,10 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "Monocytes_marker-umap.png", width = 12, height = 4.5, bg = "white"
-)
+fn <- paste0(plot_dir, "Monocytes_marker-umap.png")
+ggplot2::ggsave(fn, width = 12, height = 5, bg = "white")
 
-# ------------------------------------------------------------------------------
-# Differential expression between stimulation conditions
+# Differential expression ------------------------------------------------------
 
 # Calculate DE genes
 markers <- scran::findMarkers(
@@ -712,14 +673,14 @@ markers <- scran::findMarkers(
 for (i in names(markers)) {
   markers[[i]] <- as.data.frame(markers[[i]])
   markers[[i]]$cluster <- i
-  markers[[i]]$ENSEMBL <- row.names(markers[[i]])
+  markers[[i]]$gene <- row.names(markers[[i]])
 }
 markers <- dplyr::bind_rows(as.list(markers))
-markers$gene <- features$SYMBOL[match(markers$ENSEMBL, features$ENSEMBL)]
-markers <- markers[, c("ENSEMBL", "gene", "cluster", "FDR", "p.value")]
+markers <- markers[, c("gene", "cluster", "FDR", "p.value")]
 
 # Save marker table
-write.csv(markers, "Monocytes_Condition-markers.csv", row.names = FALSE)
+fn <- paste0(plot_dir, "Monocytes_Condition-markers.csv")
+write.csv(markers, fn, row.names = FALSE)
 
 # Select DE genes
 cutoff <- 1e-15
@@ -727,9 +688,8 @@ de <- markers[markers$FDR < cutoff, ]
 de <- de[!duplicated(de$gene), ]
 
 # Fetch data
-ids <- features$ENSEMBL[match(de$gene, features$SYMBOL)]
 data <- object@assays$SCT@data[
-  ids, order(object@meta.data$condition, object@meta.data$donor)
+  de$gene, order(object@meta.data$condition, object@meta.data$donor)
   ]
 data <- t(scale(t(as.matrix(data))))
 
@@ -773,12 +733,10 @@ plot <- pheatmap::pheatmap(
 )
 
 # Save plot
-ggplot2::ggsave(
-  "Monocytes_de-heatmap.png", plot, width = 10, height = 6
-)
+fn <- paste0(plot_dir, "Monocytes_de-heatmap.png")
+ggplot2::ggsave(fn, plot, width = 10, height = 6)
 
-# ------------------------------------------------------------------------------
-# Transcription factor enrichment by ChEA3
+# Enrichment: ChEA3 ------------------------------------------------------------
 
 # Retrieve DE genes
 de <- markers[markers$FDR < cutoff, ]
@@ -860,21 +818,18 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "Monocytes_TF-heatmap.png", width = 12, height = 3
-)
-write.csv(result, "Monocytes_TF.csv", row.names = FALSE)
+fn <- paste0(plot_dir, "Monocytes_TF-heatmap.png")
+ggplot2::ggsave(fn, width = 12, height = 3)
+write.csv(result, stringr::str_replace(fn,".png",".csv"), row.names = FALSE)
 
-# ------------------------------------------------------------------------------
-# Enrichment of fibrosis gene sets
+# Enrichment: Fibrosis gene sets -----------------------------------------------
 
 # Retrieve gene set dictionary
 file <- tempfile()
 download.file(
-  "https://nubes.helmholtz-berlin.de/s/25ZGCXAHdBffZCP/download", file
+  "https://syncandshare.desy.de/index.php/s/ADoDP7imDpAm3Dw/download", file
 )
-dictionary <- readxl::read_excel(file)
-names(dictionary) <- c("ref", "term", "disease", "gene")
+dictionary <- read.csv(file)
 
 # Select disease and gene set size
 key <- "IPF"
@@ -888,7 +843,6 @@ for (i in unique(dictionary$term[dictionary$disease == key])) {
 }
 dict <- dplyr::bind_rows(dict)
 
-# Overrepresentation analysis ==================================================
 # Contingency table
 matrix(
   c("A", "B", "C", "D"), nrow = 2,
@@ -1010,19 +964,14 @@ ggplot2::ggplot(
   ggplot2::expand_limits(y = -0.5)
 
 # Save plot
-ggplot2::ggsave(
-  "Monocytes_IPF-geneset-enrichment.png", width = 10, height = 6
-)
-
-# Module scores ================================================================
+fn <- paste0(plot_dir, "Monocytes_IPF-geneset-enrichment.png")
+ggplot2::ggsave(fn, width = 10, height = 6)
 
 # Create scores from gene sets
 for (i in names(genesets)) {
   print(i)
-  ids <- as.character(na.omit(
-    features$ENSEMBL[match(genesets[[i]], features$SYMBOL)]
-  ))
-  ids <- ids[ids %in% rownames(object)]
+  genes <- genesets[[i]]
+  ids <- genes[genes %in% rownames(object)]
   
   object <- Seurat::AddModuleScore(
     object   = object,
@@ -1098,9 +1047,8 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "Monocytes_IPF-geneset-score_umap.png", width = 12, height = 6
-)
+fn <- paste0(plot_dir, "Monocytes_IPF-geneset-score_umap.png")
+ggplot2::ggsave(fn, width = 10, height = 6, bg="white")
 
 # 2. Score summary across clusters by violin plots
 
@@ -1191,12 +1139,8 @@ ggplot2::ggplot(
   viridis::scale_fill_viridis(direction = -1, option = "A")
 
 # Save plot
-ggplot2::ggsave(
-  "Monocytes_IPF-geneset-score_violins.png", width = 12, height = 6
-)
+fn <- paste0(plot_dir, "Monocytes_IPF-geneset-score_violins.png")
+ggplot2::ggsave(fn, width = 12, height = 6)
 
 # Save dataset
 saveRDS(object, "Monocytes.Rds")
-
-# end of document
-################################################################################

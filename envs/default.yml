@@ -10,6 +10,7 @@ dependencies:
   - bioconductor-slingshot
   - r-seurat
   - r-seuratobject
+  - r-hdf5r
   - r-leiden
   - r-viridis
   - r-pheatmap
