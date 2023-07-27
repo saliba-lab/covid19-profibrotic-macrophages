@@ -21,9 +21,9 @@ Count matrices are downloaded directly via R as part of the analysis workflow, m
 
 * `*-counts.h5` - Count matrix in HDF5 format
 * `*-counts` - Directory containing
-   * matrix.mtx
-   * features.tsv
-   * barcodes.tsv
+   * `matrix.mtx`
+   * `features.tsv`
+   * `barcodes.tsv`
 * `monocyte-clusters-*.tsv` - Souporcell clusters to demultiplex samples (Numbers on file match barcodes)
 
 ## Analysis workflow
