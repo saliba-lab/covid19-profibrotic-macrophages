@@ -10,6 +10,13 @@ This repository contains the code used to analyze the phenotype of macrophages f
 
 [Wendisch, D., Dietrich, O., Mari, T., von Stillfried, S., SARS-CoV-2 infection triggers profibrotic macrophage responses and lung fibrosis, _Cell_ (2021), doi: https://doi.org/10.1016/j.cell.2021.11.033.](https://www.cell.com/cell/fulltext/S0092-8674(21)01383-0)
 
+## Data accessibility
+Count matrices (matrix.mtx, features.tsv, barcodes.tsv) as well as Seurat objects are stored on the Nubes cloud service
+
+> https://syncandshare.desy.de/index.php/s/c4kdBJaBjRSGLR7
+
+Count matrices are downloaded directly via R as part of the analysis workflow, manual download is not necessary. 
+
 ## Analysis workflow
 To run the analyses please run the following steps:
 
@@ -28,12 +35,5 @@ To run the analyses please run the following steps:
    Rscript R/BAL-macrophages.R
    Rscript R/Monocytes.R
    ```
-
-## Data accessibility
-Count matrices (matrix.mtx, features.tsv, barcodes.tsv) as well as Seurat objects are stored on the Nubes cloud service
-
-> https://syncandshare.desy.de/index.php/s/c4kdBJaBjRSGLR7
-
-Count matrices are downloaded directly via R as part of the analysis workflow, manual download is not necessary. 
-
+   
 License: [MIT](https://github.com/OliverDietrich/COVID-19_profibrotic-macrophage-responses/blob/main/LICENSE)
