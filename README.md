@@ -11,7 +11,7 @@ This repository contains the code used to analyze the phenotype of macrophages f
 [Wendisch, D., Dietrich, O., Mari, T., von Stillfried, S., SARS-CoV-2 infection triggers profibrotic macrophage responses and lung fibrosis, _Cell_ (2021), doi: https://doi.org/10.1016/j.cell.2021.11.033.](https://www.cell.com/cell/fulltext/S0092-8674(21)01383-0)
 
 ## Data accessibility
-Count matrices (matrix.mtx, features.tsv, barcodes.tsv) as well as Seurat objects are stored on the Nubes cloud service
+Count matrices (matrix.mtx, features.tsv, barcodes.tsv) as well as Seurat objects are stored on the DESY cloud service
 
 > https://syncandshare.desy.de/index.php/s/c4kdBJaBjRSGLR7
 
