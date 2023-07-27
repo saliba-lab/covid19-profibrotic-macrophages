@@ -25,6 +25,7 @@ Count matrices are downloaded directly via R as part of the analysis workflow, m
    * `features.tsv`
    * `barcodes.tsv`
 * `monocyte-clusters-*.tsv` - Souporcell clusters to demultiplex samples (Numbers on file match barcodes)
+* `*.Rds` - Seurat object with analysis intermediates (normalized data, embeddings, annotations)
 
 ## Analysis workflow
 To run the analyses please run the following steps:
