@@ -1,3 +1,8 @@
+## Issue
+Due to problems with the Nubes cloud service (nubes.helmholtz-berlin.de) the data is currently unavailable. This will hopefully be fixed soon.
+First, the data will be made available via share link for another cloud (see data availability).
+Second, the URLs used in the scripts will be replaced.
+
 # Analysis of transcriptomic phenotypes of lung macrophages in severe COVID-19 and SARS-CoV-2 stimulated primary monocytes.
 
 This repository contains the code used to analyze the phenotype of macrophages from bronchoalveolar lavage (BAL) fluid  ([here](https://github.com/OliverDietrich/SARS-CoV-2-infection-triggers-profibrotic-macrophage-responses-and-lung-fibrosis/blob/main/R/BAL-macrophages.R)) as well as primary monocytes stimulated with, among others, SARS-CoV-2 ([here](https://github.com/OliverDietrich/SARS-CoV-2-infection-triggers-profibrotic-macrophage-responses-and-lung-fibrosis/blob/main/R/Monocytes.R)) as shown in 
@@ -26,7 +31,7 @@ To run the analyses please run the following steps:
 ## Data accessibility
 Count matrices (matrix.mtx, features.tsv, barcodes.tsv) as well as Seurat objects are stored on the Nubes cloud service
 
-> https://nubes.helmholtz-berlin.de/s/XrM8igTzFTFSoio
+> Pending
 
 Count matrices are downloaded directly via R as part of the analysis workflow, manual download is not necessary. 
 
