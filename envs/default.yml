@@ -5,18 +5,18 @@ channels:
   - defaults
 dependencies:
   - bioconductor-scran
-  - bioconductor-batchelor
+  - bioconductor-batchelor=1.14.0
   - bioconductor-clusterProfiler
   - bioconductor-slingshot
-  - r-seurat
+  - r-seurat=4.3.0.1
   - r-seuratobject
   - r-hdf5r
   - r-leiden
-  - r-viridis
+  - r-viridis=0.6.4
   - r-pheatmap
   - r-readr
   - r-readxl
-  - r-uwot
+  - r-uwot=0.1.16
   - r-rgl
   - r-ggpubr
   - r-ggalluvial

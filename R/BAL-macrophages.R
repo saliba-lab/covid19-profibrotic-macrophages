@@ -1,100 +1,88 @@
-################################################################################
-# scRNA-seq analysis of BAL macrophages
+# Libraries --------------------------------------------------------------------
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(batchelor)
 
-# Set working directory to save output
-d <- "analysis/BAL-macrophages"
-dir.create(d)
-setwd(d)
+# Variables --------------------------------------------------------------------
+url <- list(
+  "counts"="https://syncandshare.desy.de/index.php/s/pZ7aWcNYjMnWC2E",
+  "metadata"="https://syncandshare.desy.de/index.php/s/ZqzjMZxLgNDcQSR"
+)
+url <- lapply(url, paste0, "/download")
 
+data_path <- "data/bal/"
+dir.create(data_path, recursive = TRUE)
+
+files <- list(
+  "counts"="data/bal/counts.h5",
+  "metadata"="data/bal/metadata.xlsx"
+)
+
+plot_dir <- "results/bal/"
+dir.create(plot_dir, recursive = TRUE)
+
+# Download data ----------------------------------------------------------------
 options(timeout = Inf)
 
-# ------------------------------------------------------------------------------
-# Download data from public repository
+for (name in names(files)) {
+  file <- files[[name]]
+  if (file.exists(file)) {
+    print(paste("File", file, "already exists and will be skipped..."))
+    next
+  } else {
+    print(paste("Downloading", name))
+    download.file(url[[name]], file)
+  }
+}
 
-# Barcodes
-con <- url("https://nubes.helmholtz-berlin.de/s/8DYsAwEMD3CniNj/download")
-barcodes <- readLines(gzcon(con))
+# Read data --------------------------------------------------------------------
+counts <- Read10X_h5(files$counts)
+metadata <- readxl::read_excel(files$metadata)
 
-# Features
-con <- url("https://nubes.helmholtz-berlin.de/s/rDAk9Sa7n8rGGG6/download")
-features <- readr::read_tsv(
-  gzcon(con), col_names = c("ENSEMBL", "SYMBOL", "TYPE")
-)
+# Create Seurat object ---------------------------------------------------------
 
-# Matrix
-con <- url("https://nubes.helmholtz-berlin.de/s/dS39WttqQz7qedp/download")
-matrix <- as(Matrix::readMM(gzcon(con)), "dgCMatrix")
-colnames(matrix) <- barcodes
-rownames(matrix) <- features$ENSEMBL
+# Viral genes
+index <- which(stringr::str_detect(rownames(counts), "SCoV2"))
+viral <- counts[index, ]
 
-# ------------------------------------------------------------------------------
-# Re-shape data into Seurat object
+# Human genes
+index <- which(!stringr::str_detect(rownames(counts),"SCoV2"))
+counts <- counts[index, ]
 
-# Check features
-unique(features$TYPE)
-table(stringr::str_detect(features$ENSEMBL, "ENSG"))
-table(stringr::str_detect(features$ENSEMBL, "SCoV2"))
-
-scov2 <- matrix[which(stringr::str_detect(rownames(matrix), "SCoV2")), ]
-matrix <- matrix[which(stringr::str_detect(rownames(matrix), "ENSG")), ]
-
-# Compare matrix size
-lapply(
-  c("Gene expression"       = matrix, 
-    "SARS-CoV-2 mRNAs"      = scov2
-  ), 
-  dim
-)
-
-# Create Seurat object and remove raw matrix
+# Create Seurat object
 object <- Seurat::CreateSeuratObject(
-  counts  = matrix, 
+  counts  = counts, 
   assay   = "RNA",
   project = "COVID-19 BAL macrophages"
 )
-rm(matrix)
+rm(counts) # remove raw data
 
-# Add viral counts and hashtags as assays
-object[["SCoV2"]] <- Seurat::CreateAssayObject(counts = scov2)
-rm(scov2)
-
-# Store features in the object
-object@misc$features <- features
+# Add viral counts as assay
+object[["SCoV2"]] <- Seurat::CreateAssayObject(counts = viral)
+rm(viral)
 
 # Add patient metadata
-f <- tempfile()
-download.file(
-  "https://nubes.helmholtz-berlin.de/s/XrM8igTzFTFSoio/download?path=%2F&files=metadata.xlsx&downloadStartSecret=3rqbggnaplr",
-  f
-)
-metadata <- readxl::read_excel(f)
-file.remove(f)
-
 object@meta.data <- cbind(
   object@meta.data, 
   metadata[stringr::str_split(colnames(object), "-", simplify = TRUE)[, 2], ]
   )
-object@meta.data$dataset <- factor(object@meta.data$dataset)
-object@meta.data$dpso <- factor(
-  object@meta.data$dpso, c("day 7", "day 10", "day 14", "day 25")
+object$dataset <- factor(object@meta.data$dataset)
+object$dpso <- paste("day", object$dpso)
+object$dpso <- factor(
+  object$dpso, c("day 7", "day 10", "day 14", "day 25")
   )
-object@meta.data$patient <- factor(
-  object@meta.data$patient,
-  unique(object@meta.data$patient[order(object@meta.data$dpso)])
+object$patient <- factor(
+  object$patient,
+  unique(object$patient[order(object@meta.data$dpso)])
 )
-object@meta.data$age <- factor(object@meta.data$age)
-object@meta.data$sex <- factor(object@meta.data$sex)
+object$age <- factor(object$age)
+object$sex <- factor(object$sex)
 
-# ------------------------------------------------------------------------------
-# Quality control & filtering
+# Quality control --------------------------------------------------------------
 
-# Calculate proportion of mitochondrial gene counts
-mt_counts <- Matrix::colSums(object@assays$RNA@counts[
-  features$ENSEMBL[which(stringr::str_detect(features$SYMBOL, "^MT-"))]
-  , ]) 
-object@meta.data$percent.mt <- round(
-  mt_counts / object@meta.data$nCount_RNA * 100, 1
-)
+object[["percent.mt"]] <- PercentageFeatureSet(object, pattern = "^MT-")
 
 # Set cell (column) filter
 # Based on cutoffs for QC metrics
@@ -123,8 +111,7 @@ genes <- as.character(unlist(genes))
 # Apply filter
 object <- subset(object, cells = cells, features = genes)
 
-# ------------------------------------------------------------------------------
-# Normalize mRNA counts
+# Normalization ----------------------------------------------------------------
 
 object <- Seurat::NormalizeData(
   object               = object,
@@ -138,15 +125,14 @@ object <- Seurat::FindVariableFeatures(
   nfeatures        = 3000
 )
 
-# ------------------------------------------------------------------------------
-# Calculate low-dimensional embedding & clustering
+# Integration ------------------------------------------------------------------
 
 # MNN-corrected PCA
 set.seed(1993)
 object@reductions[["pca"]] <- Seurat::CreateDimReducObject(
   embeddings = batchelor::fastMNN(
     object@assays$RNA@data[object@assays$RNA@var.features, ],
-    batch = object@meta.data$patient,
+    batch = object$patient,
     d     = 40
   )@int_colData$reducedDims$corrected,
   key        = "PC_",
@@ -159,53 +145,37 @@ object <- Seurat::RunUMAP(object = object, dims = 1:40, seed.use = 1993)
 # Clustering
 set.seed(1993)
 object <- Seurat::FindNeighbors(object = object, dims = 1:40)
-object@meta.data$Cluster <- factor(leiden::leiden(
-  object@graphs$RNA_snn, resolution_parameter = 0.9, seed = 1993
-))
+object <- Seurat::FindClusters(object, algorithm = 3, resolution = 0.9)
+object$Cluster <- object$seurat_clusters
 
-# ------------------------------------------------------------------------------
-# Annotate clusters & select high-quality cells
+# Annotate cell types ----------------------------------------------------------
+
+# Plot
+Seurat::DimPlot(object, group.by = "Cluster", label = TRUE) +
+  ggplot2::coord_fixed()
 
 # Annotate
-cluster.annotation <- c(
-  "1"  = "Neutrophils",
-  "2"  = "Low quality",
-  "3"  = "Neutrophils",
-  "4"  = "T cells",
-  "5"  = "T cells",
-  "6"  = "Neutrophils",
-  "7"  = "T cells",
-  "8"  = "Macrophages",
-  "9"  = "Low quality",
-  "10" = "Macrophages",
-  "11" = "Low quality",
-  "12" = "Macrophages",
-  "13" = "NK cells",
-  "14" = "T cells",
-  "15" = "T cells",
-  "16" = "Plasma cells",
-  "17" = "Plasma cells",
-  "18" = "Low quality",
-  "19" = "Low quality",
-  "20" = "Erythrocytes",
-  "21" = "Epithelial cells",
-  "22" = "Plasma cells",
-  "23" = "Macrophages",
-  "24" = "Macrophages",
-  "25" = "B and DC",
-  "26" = "Plasma cells",
-  "27" = "Low quality",
-  "28" = "Plasma cells",
-  "29" = "Neutrophils"
+c2l <- list(
+  "Neutrophils" = c(0,2,5),
+  "Macrophages" = c(6,11,13,25),
+  "T cells" = c(12,14,4,3,7),
+  "NK cells" = c(17),
+  "Plasma cells" = c(15,27,22,23,19),
+  "Erythrocytes" = c(20),
+  "Epithelial cells" = c(21),
+  "B and DC" = c(24)
 )
-object@meta.data$Celltype <- factor(
-  cluster.annotation[as.character(object$Cluster)],
-  unique(cluster.annotation)[c(4,1,5,3,9,6,8,7,2)]
-  )
+v <- c()
+for (i in names(lapply(c2l, length))) {v <- c(v, rep(i, length(c2l[[i]])))}
+names(v) <- unlist(c2l)
+
+object$Celltype <- "Low quality"
+index <- object$Cluster %in% names(v)
+object$Celltype[index] <- v[as.character(object$Cluster[index])]
+object$Celltype <- factor(object$Celltype, names(c2l))
 
 # Plot
 Seurat::DimPlot(object, group.by = "Celltype") +
-  ggplot2::scale_color_brewer(palette = "Set1") +
   ggplot2::coord_fixed()
 
 # Select
@@ -224,11 +194,10 @@ for (assay in names(object@assays)) {
 }
 genes <- as.character(unlist(genes))
 
-# Filter
+# Remove low quality cells -----------------------------------------------------
 object <- subset(object, cells = cells, features = genes)
 
-# ------------------------------------------------------------------------------
-# Normalize mRNA counts
+# Normalization ----------------------------------------------------------------
 
 object <- Seurat::NormalizeData(
   object               = object,
@@ -242,26 +211,15 @@ object <- Seurat::FindVariableFeatures(
   nfeatures        = 3000
 )
 
-# ------------------------------------------------------------------------------
-# Calculate low-dimensional embedding
+# Embedding --------------------------------------------------------------------
 
-# MNN-corrected PCA
-set.seed(1993)
-object@reductions[["pca"]] <- Seurat::CreateDimReducObject(
-  embeddings = batchelor::fastMNN(
-    object@assays$RNA@data[object@assays$RNA@var.features, ],
-    batch = object@meta.data$patient,
-    d     = 40
-  )@int_colData$reducedDims$corrected,
-  key        = "PC_",
-  assay      = "RNA"
-)
+# Re-level factor
+object$patient <- factor(object$patient)
 
 # UMAP
 object <- Seurat::RunUMAP(object = object, dims = 1:40, seed.use = 1993)
 
-# ------------------------------------------------------------------------------
-# Show celltypes
+# Plot: Celltypes --------------------------------------------------------------
 
 # Re-level factor (remove 'Low quality')
 object$Celltype <- factor(object$Celltype)
@@ -293,8 +251,8 @@ data <- tidyr::tibble(
 # Set annotation coordinates
 ann <- data.frame(
   col = levels(data$col),
-  x   = c( -7, 7, -1,-8,  -1,-9,  2, -2),
-  y   = c(-10,-5,3.6,-3,-1.5, 9,5.4,-14)
+  x   = c(-3, -2, 9,5,  5,  4,-1,-7),
+  y   = c( 8,-14,-3,8,-11,-17,-2,-5)
 )
 
 # Plot
@@ -339,9 +297,8 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL_Celltypes.png", width = 5, height = 6
-)
+fn <- paste0(plot_dir, "BAL_Celltypes.png")
+ggplot2::ggsave(fn, width = 5, height = 5.5, bg="white")
 
 # Create DE table between cell types
 markers <- scran::findMarkers(
@@ -355,15 +312,14 @@ markers <- scran::findMarkers(
 for (i in names(markers)) {
   markers[[i]] <- as.data.frame(markers[[i]])
   markers[[i]]$cluster <- i
-  markers[[i]]$ENSEMBL <- row.names(markers[[i]])
+  markers[[i]]$gene <- row.names(markers[[i]])
 }
 markers <- dplyr::bind_rows(as.list(markers))
-markers$gene <- features$SYMBOL[match(markers$ENSEMBL, features$ENSEMBL)]
-markers <- markers[, c(10,13,11,1,2,3:9,12)]
-write.csv(markers, "BAL_Celltype-markers.csv", row.names = FALSE)
+markers <- markers[, c(11,12,1,2,3:10,13)]
+fn <- paste0(plot_dir, "BAL_Celltype-markers.csv")
+write.csv(markers, fn, row.names = FALSE)
 
-# ------------------------------------------------------------------------------
-# Show patients
+# Plot: Patients ---------------------------------------------------------------
 
 # Fetch data
 data <- tidyr::tibble(
@@ -416,9 +372,8 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL_Patients.png", width = 7, height = 6
-)
+fn <- paste0(plot_dir, "BAL_Patients.png")
+ggplot2::ggsave(fn, width = 7, height = 6, bg="white")
 
 # Create DE table between patients
 markers <- scran::findMarkers(
@@ -431,15 +386,14 @@ markers <- scran::findMarkers(
 for (i in names(markers)) {
   markers[[i]] <- as.data.frame(markers[[i]])
   markers[[i]]$cluster <- i
-  markers[[i]]$ENSEMBL <- row.names(markers[[i]])
+  markers[[i]]$gene <- row.names(markers[[i]])
 }
 markers <- dplyr::bind_rows(as.list(markers))
-markers$gene <- features$SYMBOL[match(markers$ENSEMBL, features$ENSEMBL)]
-markers <- markers[, c(10,13,11,1,2,3:9,12)]
-write.csv(markers, "BAL_Patient-markers.csv", row.names = FALSE)
+markers <- markers[, c(10,11,1,2,3:9,12)]
+fn <- paste0(plot_dir, "BAL_Patient-markers.csv")
+write.csv(markers, fn, row.names = FALSE)
 
-# ------------------------------------------------------------------------------
-# Show timepoints (day post symptom onset)
+# Plot: Timepoints (DPSO) ------------------------------------------------------
 
 # Fetch data
 data <- tidyr::tibble(
@@ -502,9 +456,8 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL_Timepoints.png", width = 7, height = 6
-)
+fn <- paste0(plot_dir, "BAL_Timepoints.png")
+ggplot2::ggsave(fn, width = 7, height = 6, bg="white")
 
 # Create DE table between timepoints
 markers <- scran::findMarkers(
@@ -517,15 +470,14 @@ markers <- scran::findMarkers(
 for (i in names(markers)) {
   markers[[i]] <- as.data.frame(markers[[i]])
   markers[[i]]$cluster <- i
-  markers[[i]]$ENSEMBL <- row.names(markers[[i]])
+  markers[[i]]$gene <- row.names(markers[[i]])
 }
 markers <- dplyr::bind_rows(as.list(markers))
-markers$gene <- features$SYMBOL[match(markers$ENSEMBL, features$ENSEMBL)]
-markers <- markers[, c(6,9,7,1,2,3:5,8)]
-write.csv(markers, "BAL_Timepoint-markers.csv", row.names = FALSE)
+markers <- markers[, c(7,8,1,2,3:6,9)]
+fn <- paste0(plot_dir, "BAL_Timepoint-markers.csv")
+write.csv(markers, fn, row.names = FALSE)
 
-# ------------------------------------------------------------------------------
-# Show viral mRNA counts
+# Plot: SCoV2 counts -----------------------------------------------------------
 
 # Fetch data
 data <- tidyr::tibble(
@@ -534,6 +486,7 @@ data <- tidyr::tibble(
   col = Matrix::colSums(object@assays$SCoV2@counts)
 )
 data <- data[order(data$col), ]
+data$col[data$col == 0] <- NA # Hide zero-values
 
 # Plot
 ggplot2::ggplot(
@@ -581,12 +534,10 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL_viral-mRNA.png", width = 6, height = 6
-)
+fn <- paste0(plot_dir, "BAL_viral-mRNA.png")
+ggplot2::ggsave(fn, width = 6, height = 6, bg="white")
 
-# ------------------------------------------------------------------------------
-# Show celltype markers
+# Dotplot: Cell type markers ---------------------------------------------------
 
 # Select marker genes
 genes <- list(
@@ -600,10 +551,8 @@ genes <- list(
   "Erythrocytes"     = c("HBA1", "HBA2", "HBB")
 )
 
-# Convert SYMBOLs to ENSEMBL IDs and fetch normalized counts
-ids <- features$ENSEMBL[match(unlist(genes) ,features$SYMBOL)]
-data <- tidyr::as_tibble(t(as.matrix(object@assays$RNA@data[ids, ])))
-colnames(data) <- unlist(genes)
+genes <- unlist(genes[levels(object$Celltype)])
+data <- tidyr::as_tibble(t(as.matrix(object@assays$RNA@data[genes, ])))
 
 # Add metadata
 data$Celltype <- object$Celltype
@@ -669,18 +618,16 @@ ggplot2::ggplot(
   ggplot2::scale_size_area(max_size = 10)
 
 # Save plot
-ggplot2::ggsave(
-  "BAL_Celltype-markers_dotplot.png", width = 12, height = 6
-)
+fn <- paste0(plot_dir, "BAL_Celltype-markers_dotplot.png")
+ggplot2::ggsave(fn, width = 12, height = 6)
 
 # Save DE table of marker genes
-markers <- read.csv("BAL_Celltype-markers.csv")
-write.csv(
-  markers[markers$gene %in% unlist(genes), ], "BAL_Celltype-markers_dotplot.csv"
-  )
+fn_in <- paste0(plot_dir, "BAL_Celltype-markers.csv")
+fn_out <- paste0(plot_dir, "BAL_Celltype-markers_dotplot.csv")
+markers <- read.csv(fn_in)
+write.csv(markers[markers$gene %in% unlist(genes), ], fn_out)
 
-# ------------------------------------------------------------------------------
-# Show proportions of cell types across patients
+# Barplot: Cell type x Patient -------------------------------------------------
 
 # Fetch metadata
 data <- tidyr::tibble(
@@ -739,7 +686,7 @@ ggplot2::ggplot(
     legend.position = "right",
     aspect.ratio    = 0.6,
     axis.text.x     = ggplot2::element_text(
-      color = c(color.timepoint[tp], "black"),
+      # color = c(color.timepoint[tp], "black"), # BROKEN!!!
       angle = 45, hjust = 1, vjust = 1
     )
   ) +
@@ -748,11 +695,11 @@ ggplot2::ggplot(
   ) +
   ggplot2::annotate(
     geom = "text",
-    label = levels(data$Timepoint),
-    x     = c(1.5,3,4.5,6.5),
+    label = c(as.character(tp), ""),
+    x     = 1:8,
     y     = -10,
-    size  = 9,
-    color = color.timepoint
+    size  = 5,
+    color = c(color.timepoint[tp], "black")
   ) +
   ggplot2::guides(
     fill  = ggplot2::guide_legend(
@@ -763,14 +710,11 @@ ggplot2::ggplot(
   ggplot2::expand_limits(y = -15)
 
 # Save plot
-ggplot2::ggsave(
-  "BAL_Celltype-proportions_barplot.png", width = 12, height = 6
-)
+fn <- paste0(plot_dir, "BAL_Celltype-proportions_barplot.png")
+ggplot2::ggsave(fn, width = 12, height = 6)
 
-# ------------------------------------------------------------------------------
-# Save dataset to disk (optional)
-
-saveRDS(object, "BAL.Rds")
+# Save dataset -----------------------------------------------------------------
+saveRDS(object, "data/BAL.Rds")
 
 # ------------------------------------------------------------------------------
 # Select the macrophages & re-normalize 

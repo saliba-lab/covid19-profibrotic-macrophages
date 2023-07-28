@@ -1,6 +1,7 @@
 # Libraries --------------------------------------------------------------------
 library(Seurat)
 library(dplyr)
+library(ggplot2)
 
 # Variables --------------------------------------------------------------------
 url <- list(
@@ -18,8 +19,8 @@ files <- list(
   "donor-2"="data/monocytes/donor-2.tsv"
 )
 
-plot_dir <- "results/"
-dir.create(plot_dir)
+plot_dir <- "results/monocytes/"
+dir.create(plot_dir, recursive = TRUE)
 
 # Download data ----------------------------------------------------------------
 for (name in names(files)) {
@@ -45,8 +46,6 @@ donors[["2"]]$barcode <- stringr::str_replace(
   donors[["2"]]$barcode, "1", "2"
 )
 donors <- dplyr::bind_rows(donors)
-# Features
-
 
 # Create Seurat object ---------------------------------------------------------
 
