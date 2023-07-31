@@ -33,7 +33,7 @@ To run the analyses please run the following steps:
 1. Clone the git repository
    ```
    git clone https://github.com/OliverDietrich/covid19.macrophages.git
-   cd covid19.macrophages
+   cd covid19-profibrotic-macrophages
    ```
 1. Install packages via conda
    ```
