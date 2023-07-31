@@ -38,7 +38,7 @@ To run the analyses please run the following steps:
 1. Install packages via conda
    ```
    conda env create -f envs/default.yml
-   conda activate covid19-macrophages
+   conda activate covid19-profibrotic-macrophages
    ```
 1. Run analyses
    ```
