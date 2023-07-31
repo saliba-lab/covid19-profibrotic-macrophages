@@ -1,4 +1,4 @@
-name: covid19-macrophages
+name: covid19-profibrotic-macrophages
 channels:
   - conda-forge
   - bioconda
