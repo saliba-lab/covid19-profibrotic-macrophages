@@ -1,9 +1,3 @@
-## Issue
-Due to problems with the Nubes cloud service (nubes.helmholtz-berlin.de) the data was temporarily unavailable.
-Raw data (count table) for both BAL samples and monocytes is available via DESY.
-Soon, the Seurat objects including normalized data, embeddings and annotations will be available as well.
-Thereafter, the scripts will be updated to include updated URLs for data download.
-
 # Analysis of transcriptomic phenotypes of lung macrophages in severe COVID-19 and SARS-CoV-2 stimulated primary monocytes.
 
 This repository contains the code used to analyze the phenotype of macrophages from bronchoalveolar lavage (BAL) fluid as well as primary monocytes stimulated with, among others, SARS-CoV-2 as shown in 
