@@ -7,7 +7,7 @@ dependencies:
   - bioconductor-scran
   - bioconductor-batchelor=1.14.0
   - bioconductor-clusterProfiler
-  - bioconductor-slingshot
+  - bioconductor-slingshot=2.6.0
   - r-seurat=4.3.0.1
   - r-seuratobject
   - r-hdf5r
@@ -21,5 +21,7 @@ dependencies:
   - r-ggpubr
   - r-ggalluvial
   - r-ggnewscale
+  - r-ggrepel
   - leidenalg=0.8.4
   - pandas
+  - rstudio

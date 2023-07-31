@@ -23,6 +23,46 @@ files <- list(
 plot_dir <- "results/bal/"
 dir.create(plot_dir, recursive = TRUE)
 
+# R datasets
+out_bal <- "data/BAL.Rds"
+out_bal_macrophages <- "data/BAL-macrophages.Rds"
+
+# Colors -----------------------------------------------------------------------
+
+# Timepoint
+color.timepoint <- c(
+  "day 7"  = "darkorange",
+  "day 10" = "indianred",
+  "day 14" = "purple",
+  "day 25" = "navy",
+  "" = "black"
+)
+object@misc$colors$Timepoint <- color.timepoint
+
+# Celltype
+color.celltype <- c(
+  "Neutrophils"      = "darkorange2",
+  "Macrophages"      = "indianred",
+  "T cells"          = "deepskyblue",
+  "NK cells"         = "purple",
+  "Plasma cells"     = "lightseagreen",
+  "Erythrocytes"     = "pink2",
+  "Epithelial cells" = "goldenrod",
+  "B and DC"         = "steelblue"
+)
+object@misc$colors <- list(Celltype = color.celltype)
+
+# Macrophage subtypes
+color.cluster <- c(
+  "Monocytes"     = "#009E73",
+  "Mono/Mφ"       = "#E69F00",
+  "CD163/LGMN-Mφ" = "#D55E00",
+  "AMφ-1"         = "#A020F0",
+  "AMφ-2"         = "#0072B2",
+  "Prolif. AMφ"   = "#56B4E9"
+)
+object@misc$colors$Subtype <- color.cluster
+
 # Download data ----------------------------------------------------------------
 options(timeout = Inf)
 
@@ -224,23 +264,6 @@ object <- Seurat::RunUMAP(object = object, dims = 1:40, seed.use = 1993)
 # Re-level factor (remove 'Low quality')
 object$Celltype <- factor(object$Celltype)
 
-# Select colors
-color.celltype <- c(
-  "Neutrophils"      = "darkorange2",
-  "Macrophages"      = "indianred",
-  "T cells"          = "deepskyblue",
-  "NK cells"         = "purple",
-  "Plasma cells"     = "lightseagreen",
-  "Erythrocytes"     = "pink2",
-  "Epithelial cells" = "goldenrod",
-  "B and DC"         = "steelblue"
-)
-
-# Store colors in object
-object@misc$colors <- list(
-  Celltype = color.celltype
-)
-
 # Fetch data
 data <- tidyr::tibble(
   x = object@reductions$umap@cell.embeddings[, 1],
@@ -401,15 +424,6 @@ data <- tidyr::tibble(
   y = object@reductions$umap@cell.embeddings[, 2],
   col = object@meta.data$dpso
 )
-
-# Select colors
-color.timepoint <- c(
-  "day 7"  = "darkorange",
-  "day 10" = "indianred",
-  "day 14" = "purple",
-  "day 25" = "navy"
-)
-object@misc$colors$Timepoint <- color.timepoint
 
 # Plot
 ggplot2::ggplot(
@@ -714,10 +728,9 @@ fn <- paste0(plot_dir, "BAL_Celltype-proportions_barplot.png")
 ggplot2::ggsave(fn, width = 12, height = 6)
 
 # Save dataset -----------------------------------------------------------------
-saveRDS(object, "data/BAL.Rds")
+saveRDS(object, out_bal)
 
-# ------------------------------------------------------------------------------
-# Select the macrophages & re-normalize 
+# Select the macrophages & re-normalize ----------------------------------------
 
 # Select
 cells <- colnames(object)[which(
@@ -752,8 +765,7 @@ object <- Seurat::FindVariableFeatures(
   nfeatures        = 3000
 )
 
-# ------------------------------------------------------------------------------
-# Calculate low-dimensional embedding & clustering
+# Calculate low-dimensional embedding & clustering -----------------------------
 
 # MNN-corrected PCA
 set.seed(1993)
@@ -773,16 +785,19 @@ object <- Seurat::RunUMAP(object = object, dims = 1:40, seed.use = 1993)
 # Clustering
 set.seed(1993)
 object <- Seurat::FindNeighbors(object = object, dims = 1:40)
-object@meta.data$Cluster <- factor(leiden::leiden(
-  object@graphs$RNA_snn, resolution_parameter = 0.6, seed = 1993
-))
+object <- Seurat::FindClusters(object, algorithm=3, resolution = 0.7)
+object$Cluster <- object$seurat_clusters
 
-# ------------------------------------------------------------------------------
-# Select high quality cells & re-normalize 
+# Select high quality cells & re-normalize -------------------------------------
+
+# Plot
+DimPlot(object, label = TRUE) + coord_fixed()
+FeaturePlot(object, "CD3D") + coord_fixed() +
+  viridis::scale_color_viridis(option = "A", direction = -1)
 
 # Select
 cells <- colnames(object)[which(
-  object@meta.data$Cluster != "7"
+  object@meta.data$Cluster != "9"
 )]
 genes <- list()
 for (assay in names(object@assays)) {
@@ -813,8 +828,7 @@ object <- Seurat::FindVariableFeatures(
   nfeatures        = 3000
 )
 
-# ------------------------------------------------------------------------------
-# Calculate low-dimensional embedding & clustering
+# Calculate low-dimensional embedding & clustering -----------------------------
 
 # MNN-corrected PCA
 set.seed(1993)
@@ -834,50 +848,39 @@ object <- Seurat::RunUMAP(object = object, dims = 1:30, seed.use = 1993)
 # Clustering
 set.seed(1993)
 object <- Seurat::FindNeighbors(object = object, dims = 1:30)
-object@meta.data$Cluster <- factor(leiden::leiden(
-  object@graphs$RNA_snn, resolution_parameter = 0.6, seed = 1993
-))
+object <- Seurat::FindClusters(object, algorithm=3, resolution = 0.7)
+object$Cluster <- object$seurat_clusters
 
-# ------------------------------------------------------------------------------
-# Annotate clusters
+# Annotate clusters ------------------------------------------------------------
+
+# Plot
+DimPlot(object, label = TRUE) + coord_fixed()
 
 # Annotate
-cluster.annotation <- c(
-  "1"  = "Monocytes",
-  "2"  = "CD163/LGMN-Mφ",
-  "3"  = "Mono/Mφ",
-  "4"  = "AMφ-1",
-  "5"  = "AMφ-2",
-  "6"  = "Monocytes",
-  "7"  = "Mono/Mφ",
-  "8"  = "Prolif. AMφ",
-  "9"  = "CD163/LGMN-Mφ",
-  "10" = "Mono/Mφ"
+c2l <- list(
+  "Monocytes" = c(6,1),
+  "Mono/Mφ" = c(2,5),
+  "CD163/LGMN-Mφ" = c(0,7),
+  "AMφ-1" = c(3),
+  "AMφ-2" = c(4),
+  "Prolif. AMφ" = c(8)
 )
-object@meta.data$Cluster <- factor(
-  cluster.annotation[as.character(object$Cluster)],
-  unique(cluster.annotation)[c(1,3,2,4,5,6)]
-)
+v <- c()
+for (i in names(lapply(c2l, length))) {v <- c(v, rep(i, length(c2l[[i]])))}
+names(v) <- unlist(c2l)
 
-# ------------------------------------------------------------------------------
-# Show clusters
+object$Subtype <- "Low quality"
+index <- object$Cluster %in% names(v)
+object$Subtype[index] <- v[as.character(object$Cluster[index])]
+object$Subtype <- factor(object$Subtype, names(c2l))
 
-# Select colors
-color.cluster <- c(
-  "Monocytes"     = "#009E73",
-  "Mono/Mφ"       = "#E69F00",
-  "CD163/LGMN-Mφ" = "#D55E00",
-  "AMφ-1"         = "#A020F0",
-  "AMφ-2"         = "#0072B2",
-  "Prolif. AMφ"   = "#56B4E9"
-)
-object@misc$colors$Cluster <- color.cluster
+# Show clusters ----------------------------------------------------------------
 
 # Fetch data
 data <- tidyr::tibble(
   x = object@reductions$umap@cell.embeddings[, 1],
   y = object@reductions$umap@cell.embeddings[, 2],
-  col = object$Cluster
+  col = object$Subtype
 )
 
 # Select annotation coordinates
@@ -895,7 +898,7 @@ ggplot2::ggplot(
   )
 ) +
   ggplot2::geom_point(size = 1) +
-  ggplot2::geom_label(
+  ggrepel::geom_label_repel(
     data = ann, size = 8, label.padding = grid::unit(2, "mm")
   ) +
   ggplot2::scale_color_manual(values = color.cluster) +
@@ -926,12 +929,10 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_Clusters.png", width = 11, height = 6
-)
+fn <- paste0(plot_dir, "BAL-macrophages_Clusters.png")
+ggplot2::ggsave(fn, width = 10, height = 6, bg="white")
 
-# ------------------------------------------------------------------------------
-# Show clusters on 3D UMAP
+# Show clusters on 3D UMAP -----------------------------------------------------
 
 # Create 3D umap and fetch clusters
 set.seed(1993)
@@ -944,7 +945,7 @@ object@reductions$umap_3d <- Seurat::CreateDimReducObject(
 )
 data <- tidyr::as_tibble(object@reductions$umap_3d@cell.embeddings)
 names(data) <- c("x", "y", "z")
-data$col <- object@meta.data$Cluster
+data$col <- object$Subtype
 
 # Plot
 rgl::par3d(windowRect = c(50, 50, 800, 800))
@@ -957,25 +958,26 @@ rgl::plot3d(
   box    = FALSE,
   xlab   = "",
   ylab   = "",
-  zlab   = "", 
+  zlab   = ""
 )
 rgl::rgl.lines(c(min(data$x), max(data$x)), c(0, 0), c(0, 0), color = "black", lwd = 4)
 rgl::rgl.lines(c(0, 0), c(min(data$y), max(data$y)), c(0, 0), color = "firebrick", lwd = 4)
 rgl::rgl.lines(c(0, 0), c(0, 0), c(min(data$z), max(data$z)), color = "seagreen", lwd = 4)
 
 # Save plot
-rgl::rgl.snapshot("BAL-macrophages_3D-umap-clusters.png")
-rgl::writeWebGL(filename = "BAL-macrophages_3D-umap-clusters.html")
+rgl::rgl.snapshot(paste0(plot_dir, "BAL-macrophages_3D-umap-clusters.png"))
+rgl::writeWebGL(
+  filename = paste0(plot_dir, "BAL-macrophages_3D-umap-clusters.png")
+  )
 rgl::rgl.close()
 
-# ------------------------------------------------------------------------------
-# Show differentiation trajectory by slingshot
+# Show differentiation trajectory by slingshot ---------------------------------
 
 # Fetch data
 data <- tidyr::tibble(
   x = object@reductions$umap@cell.embeddings[, 1],
   y = object@reductions$umap@cell.embeddings[, 2],
-  col = object$Cluster
+  col = object$Subtype
 )
 
 # Calculate the slingshot trajectory
@@ -986,14 +988,13 @@ trajectory <- slingshot::slingshot(
   allow.breaks  = TRUE
 )
 
+data$pst <- trajectory@assays@data$pseudotime[,1]
 # Re-shape trajectory data
 curves <- list()
-for (curve in names(trajectory@curves)) {
+for (curve in names(trajectory@metadata$curves)) {
   print(curve)
-  curves[[curve]] <- tidyr::as_tibble(trajectory@curves[[curve]]$s)
-  curves[[curve]][["lambda"]] <- trajectory@curves[[curve]]$lambda
-  curves[[curve]][["dist_ind"]] <- trajectory@curves[[curve]]$dist_ind
-  curves[[curve]][["w"]] <- trajectory@curves[[curve]]$w
+  curves[[curve]] <- tidyr::as_tibble(trajectory@metadata$curves[[curve]]$s)
+  curves[[curve]]$name <- curve
 }
 curves <- dplyr::bind_rows(curves)
 
@@ -1003,7 +1004,7 @@ ggplot2::ggplot(
   mapping = ggplot2::aes(
     x     = x,
     y     = y,
-    col   = col
+    col   = pst
   )
 ) +
   ggplot2::geom_point(size = 2) +
@@ -1012,27 +1013,27 @@ ggplot2::ggplot(
     mapping = ggplot2::aes(
       x = x,
       y = y,
-      col = NULL,
-      fill = lambda
+      fill = name,
+      col = NULL
     ),
     shape  = 21,
-    size   = 10, 
-    stroke = NA
+    size   = 4, 
+    stroke = NA,
+    fill = "black"
   ) +
-  ggplot2::scale_color_manual(values = color.cluster) +
-  viridis::scale_fill_viridis(direction = -1) +
+  viridis::scale_color_viridis(direction = -1) +
   ggplot2::theme_void(base_size = 30) +
   ggplot2::theme(
-    legend.position = c(0.2,0.8)
+    legend.position = c(0.18,0.8)
   ) +
   ggplot2::guides(
-    color = ggplot2::guide_none(),
-    fill  = ggplot2::guide_colorbar(
-      barheight = 1, barwidth = 15, frame.colour = "black", ticks = FALSE, 
+    #fill = ggplot2::guide_none(),
+    color  = ggplot2::guide_colorbar(
+      barheight = 1, barwidth = 13, frame.colour = "black", ticks = FALSE, 
       direction = "horizontal", title.position = "top"
     )
   ) +
-  ggplot2::labs(fill = "Pseudotime") +
+  ggplot2::labs(col = "Pseudotime") +
   ggplot2::coord_fixed() + 
   ggplot2::annotate(
     geom  = "segment", 
@@ -1056,12 +1057,10 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_Cluster-trajectory.png", width = 11, height = 6
-)
+fn <- paste0(plot_dir, "BAL-macrophages_Cluster-trajectory.png")
+ggplot2::ggsave(fn, width = 10, height = 6, bg="white")
 
-# ------------------------------------------------------------------------------
-# Show viral mRNA counts
+# Show viral mRNA counts -------------------------------------------------------
 
 # Fetch data
 data <- tidyr::tibble(
@@ -1084,7 +1083,7 @@ ggplot2::ggplot(
   viridis::scale_color_viridis(direction = -1, option = "A", trans = "log10") +
   ggplot2::theme_void(base_size = 30) +
   ggplot2::theme(
-    legend.position = c(0.2,0.8)
+    legend.position = c(0.2,0.87)
   ) +
   ggplot2::guides(
     col  = ggplot2::guide_colorbar(
@@ -1116,12 +1115,10 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_viral-mRNA.png", width = 11, height = 6
-)
+fn <- paste0(plot_dir, "BAL-macrophages_viral-mRNA.png")
+ggplot2::ggsave(fn, width = 10, height = 6, bg="white")
 
-# ------------------------------------------------------------------------------
-# Show marker genes
+# Show marker genes ------------------------------------------------------------
 
 # 1. Normalized expression on UMAP
 marker.genes <- c(
@@ -1136,10 +1133,7 @@ data <- tidyr::tibble(
   y = object@reductions$umap@cell.embeddings[, 2]
   )
 for (gene in marker.genes) {
-  id <- features$ENSEMBL[match(gene, features$SYMBOL)]
-  if (id %in% rownames(object)) {
-    data[[gene]] <- object@assays$RNA@data[id, ]
-  }
+  data[[gene]] <- object@assays$RNA@data[gene, ]
 }
 
 # Re-shape and order data for plotting
@@ -1196,9 +1190,8 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_Cluster-markers_umap.png", width = 12, height = 6
-)
+fn <- paste0(plot_dir, "BAL-macrophages_Cluster-markers_umap.png")
+ggplot2::ggsave(fn, width = 12, height = 6, bg="white")
 
 # 2. Scaled expression in dotplot
 marker.genes <- list(
@@ -1237,13 +1230,10 @@ marker.genes <- unlist(marker.genes)
 
 # Fetch data
 data <- tidyr::tibble(
-  Cluster = object@meta.data$Cluster
+  Cluster = object$Subtype
 )
 for (gene in marker.genes) {
-  id <- features$ENSEMBL[match(gene, features$SYMBOL)]
-  if (id %in% rownames(object)) {
-    data[[gene]] <- object@assays$RNA@data[id, ]
-  }
+  data[[gene]] <- object@assays$RNA@data[gene, ]
 }
 
 # Re-shape and order data for plotting
@@ -1308,16 +1298,14 @@ ggplot2::ggplot(
   ggplot2::scale_size_area(max_size = 2.5)
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_Cluster-markers_dotplot.png", width = 12, height = 3
-)
+fn <- paste0(plot_dir, "BAL-macrophages_Cluster-markers_dotplot.png")
+ggplot2::ggsave(fn, width = 12, height = 3, bg="white")
 
-# ------------------------------------------------------------------------------
-# Show clusters across patients
+# Show clusters across patients ------------------------------------------------
 
 # 1. Barplot of proportions
 data <- tidyr::tibble(
-  Cluster = object@meta.data$Cluster,
+  Cluster = object@meta.data$Subtype,
   Patient = object@meta.data$patient,
   Cells   = 1
 )
@@ -1344,6 +1332,11 @@ data$Patient <- factor(
   )
 )
 
+tp <- unique(object@meta.data[, c("patient", "dpso")])
+tp <- rbind(tp, data.frame(patient="Summary", dpso=""))
+index <- match(levels(data$Patient), tp$patient)
+tp <- tp[index, ]
+
 ggplot2::ggplot(
   data    = data[order(data$Cells), ],
   mapping = ggplot2::aes(
@@ -1367,7 +1360,6 @@ ggplot2::ggplot(
     legend.position = "right",
     aspect.ratio    = 0.7,
     axis.text.x     = ggplot2::element_text(
-      color = c(color.timepoint[tp], "black"),
       angle = 45, hjust = 1, vjust = 1
     )
   ) +
@@ -1376,11 +1368,11 @@ ggplot2::ggplot(
   ) +
   ggplot2::annotate(
     geom = "text",
-    label = levels(object@meta.data$dpso),
-    x     = c(1.5,3,4.5,6.5),
+    label = tp$dpso,
+    x     = 1:8,
     y     = -11,
-    size  = 8,
-    color = color.timepoint
+    size  = 5,
+    color = color.timepoint[tp$dpso]
   ) +
   ggplot2::expand_limits(y = -15) +
   ggplot2::guides(
@@ -1391,9 +1383,8 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_barplot-cluster-patient.png", width = 11, height = 6
-  )
+fn <- paste0(plot_dir, "BAL-macrophages_barplot-cluster-patient.png")
+ggplot2::ggsave(fn, width = 11, height = 6, bg="white")
 
 # 2. UMAP embedding split by patients
 
@@ -1401,7 +1392,7 @@ ggplot2::ggsave(
 data <- tidyr::tibble(
   x = object@reductions$umap@cell.embeddings[, 1],
   y = object@reductions$umap@cell.embeddings[, 2],
-  col   = object$Cluster,
+  col   = object$Subtype,
   group = object$patient
 )
 
@@ -1445,9 +1436,8 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_umap-cluster-patient.png", width = 12, height = 4
-  )
+fn <- paste0(plot_dir, "BAL-macrophages_umap-cluster-patient.png")
+ggplot2::ggsave(fn, width = 12, height = 4, bg="white")
 
 # ------------------------------------------------------------------------------
 # Differential expression between clusters
@@ -1455,7 +1445,7 @@ ggplot2::ggsave(
 # DE test
 markers <- scran::findMarkers(
   x         = object@assays$RNA@data,
-  groups    = object@meta.data$Cluster,
+  groups    = object@meta.data$Subtype,
   pval.type = "some",
   test.type = "wilcox",
   direction = "up", 
@@ -1464,18 +1454,16 @@ markers <- scran::findMarkers(
 for (i in names(markers)) {
   markers[[i]] <- as.data.frame(markers[[i]])
   markers[[i]]$cluster <- i
-  markers[[i]]$ENSEMBL <- row.names(markers[[i]])
+  markers[[i]]$gene <- row.names(markers[[i]])
 }
 markers <- dplyr::bind_rows(as.list(markers))
-markers$gene <- features$SYMBOL[match(markers$ENSEMBL, features$ENSEMBL)]
-markers <- markers[, c(8,11,9,1,2,10,3,4,5,6,7)]
+markers <- markers[,c(12,13,1:11,14)]
 
 # Save results of DE test
-write.csv(markers, "BAL-macrophages_Cluster-markers.csv", row.names = FALSE)
-write.csv(
-  markers[markers$gene %in% marker.genes, ], 
-  "BAL-macrophages_Cluster-markers_dotplot.csv", row.names = FALSE
-  )
+fn <- paste0(plot_dir, "BAL-macrophages_Cluster-markers.csv")
+write.csv(markers, fn, row.names = FALSE)
+fn <- paste0(plot_dir, "BAL-macrophages_Cluster-markers_dotplot.csv")
+write.csv(markers[markers$gene %in% marker.genes, ], fn, row.names = FALSE)
 
 # Select genes based on FDR cutoff
 cutoff <- 1e-15
@@ -1489,11 +1477,11 @@ v <- de$gene[de$cluster == "Prolif. AMφ"]
 de <- de[which(!de$gene %in% v[c(100:length(v))]), ]
 
 # Re-order factor levels
-de$cluster <- factor(de$cluster, levels(object$Cluster))
+de$cluster <- factor(de$cluster, levels(object$Subtype))
 
 # Fetch normalized count data
 data <- object@assays$RNA@data[
-  de$ENSEMBL, order(object@meta.data$Cluster, object@meta.data$patient)
+  de$gene, order(object$Subtype, object@meta.data$patient)
 ]
 
 # Scale (z-scores)
@@ -1501,7 +1489,7 @@ data <- t(scale(t(as.matrix(data))))
 
 # Create column annotations/gaps
 cann <- data.frame(
-  Cluster = object@meta.data$Cluster,
+  Cluster = object@meta.data$Subtype,
   Patient = object@meta.data$patient
 )
 row.names(cann) <- row.names(object@meta.data)
@@ -1545,16 +1533,14 @@ plot <- pheatmap::pheatmap(
 )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_DE-heatmap.png", plot, width = 12, height = 6
-)
+fn <- paste0(plot_dir, "BAL-macrophages_DE-heatmap.png")
+ggplot2::ggsave(fn, plot, width = 12, height = 6)
 
-# -----------------------------------------------------------------------------
-# ChIP-seq enrichment analysis (ChEA3) based on DE genes
+# ChIP-seq enrichment analysis (ChEA3) based on DE genes ----------------------
 
 # Select non-unique DE genes
 de <- markers[markers$FDR < cutoff, ]
-de$cluster <- factor(de$cluster, levels(object$Cluster))
+de$cluster <- factor(de$cluster, levels(object$Subtype))
 genes <- split(de$gene, de$cluster)
 
 # ChEA3 query for each cluster
@@ -1597,14 +1583,14 @@ result$map <- unlist(
 result$geneRatio <- round(result$map / result$bg, 3)
 
 # Order result by Score
-result$cluster <- factor(result$cluster, levels(object$Cluster))
+result$cluster <- factor(result$cluster, levels(object$Subtype))
 result <- result[order(result$cluster, result$Score), ]
 
 # Select TFs by mean rank
 tfs <- result$TF[result$Score < 30]
 data <- result[which(result$TF %in% tfs), ]
 data$TF <- factor(data$TF, levels = unique(tfs))
-data$cluster <- factor(data$cluster, levels(object$Cluster))
+data$cluster <- factor(data$cluster, levels(object$Subtype))
 
 # Plot
 ggplot2::ggplot(
@@ -1635,24 +1621,19 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_TF-enrichment.png", width = 12, height = 3
-)
-write.csv(
-  result[, c(7,3,2,4,8,9,10,5,6,1)], 
-  "BAL-macrophages_TF-enrichment.csv", row.names = FALSE
-  )
+fn <- paste0(plot_dir, "BAL-macrophages_TF-enrichment.png")
+ggplot2::ggsave(fn, width = 12, height = 3, bg="white")
+fn <- paste0(plot_dir, "BAL-macrophages_TF-enrichment.csv")
+write.csv(result[, c(7,3,2,4,8,9,10,5,6,1)], fn, row.names = FALSE)
 
-# ------------------------------------------------------------------------------
-# Enrichment of COVID-19 gene sets
+# Enrichment of COVID-19 gene sets ---------------------------------------------
 
 # Retrieve gene set dictionary
 file <- tempfile()
 download.file(
-  "https://nubes.helmholtz-berlin.de/s/25ZGCXAHdBffZCP/download", file
+  "https://syncandshare.desy.de/index.php/s/ADoDP7imDpAm3Dw/download", file
 )
-dictionary <- readxl::read_excel(file)
-names(dictionary) <- c("ref", "term", "disease", "gene")
+dictionary <- read.csv(file)
 
 # Select disease and gene set size
 key <- "COVID-19"
@@ -1666,7 +1647,7 @@ for (i in unique(dictionary$term[dictionary$disease == key])) {
 }
 dict <- dplyr::bind_rows(dict)
 
-# Overrepresentation analysis ==================================================
+# Overrepresentation analysis
 
 # Contingency table
 matrix(
@@ -1781,29 +1762,19 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_COVID-19-geneset-enrichment.png", width = 11, height = 6
-)
+fn <- paste0(plot_dir, "BAL-macrophages_COVID-19-geneset-enrichment.png")
+ggplot2::ggsave(fn, width = 11, height = 6, bg="white")
 
-# Module scores ================================================================
+# Module scores
 
 # 1. UMAP embedding with cell-based scores
-idsets <- list()
-for (i in names(genesets)) {
-  print(i)
-  idsets[[i]] <- na.omit(
-    features$ENSEMBL[match(genesets[[i]], features$SYMBOL)]
-  )
-}
-idsets <- idsets[which(sapply(idsets, length) > 0)]
-
 object@meta.data <- object@meta.data[, which(
   !stringr::str_detect(string = names(object@meta.data), pattern = "geneset")
 )]
 
 object <- Seurat::AddModuleScore(
   object   = object, 
-  features = idsets, 
+  features = genesets, 
   name     = "geneset",
   assay    = "RNA", 
   seed     = 1993
@@ -1812,7 +1783,7 @@ object <- Seurat::AddModuleScore(
 scores <- object@meta.data[, which(
   stringr::str_detect(string = names(object@meta.data), pattern = "geneset")
 )]
-names(scores) <- names(idsets)
+names(scores) <- names(genesets)
 
 scores$x <- object@reductions$umap@cell.embeddings[, 1]
 scores$y <- object@reductions$umap@cell.embeddings[, 2]
@@ -1875,15 +1846,14 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_COVID-19-geneset-score-umap.png", width = 10, height = 6
-)
+fn <- paste0(plot_dir, "BAL-macrophages_COVID-19-geneset-score-umap.png")
+ggplot2::ggsave(fn, width = 9, height = 6, bg="white")
 
 # 2. Violin plots as cluster-based population summaries
 
 # Re-shape data
 data <- scores
-data$Cluster <- object@meta.data$Cluster
+data$Cluster <- object@meta.data$Subtype
 data <- tidyr::gather(data, "Geneset", "Score", -Cluster, -x, -y)
 data$Geneset <- factor(
   data$Geneset, unique(data$Geneset)[c(11,1,8,12,5,6,2,13,14,7,3,15,4,16,9,10)]
@@ -1969,12 +1939,10 @@ ggplot2::ggplot(
   viridis::scale_fill_viridis(direction = -1, option = "A")
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_COVID-19-geneset-score-violins.png", width = 12, height = 8
-)
+fn <- paste0(plot_dir, "BAL-macrophages_COVID-19-geneset-score-violins.png")
+ggplot2::ggsave(fn, width = 12, height = 8)
 
-# ------------------------------------------------------------------------------
-# Enrichment of fibrosis gene sets
+# Enrichment of fibrosis gene sets ---------------------------------------------
 
 # Select disease and gene set size
 key <- "IPF"
@@ -1988,7 +1956,7 @@ for (i in unique(dictionary$term[dictionary$disease == key])) {
 }
 dict <- dplyr::bind_rows(dict)
 
-# Overrepresentation analysis ==================================================
+# Overrepresentation analysis
 
 # Contingency table
 matrix(
@@ -2106,29 +2074,19 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_IPF-geneset-enrichment.png", width = 11, height = 6
-)
+fn <- paste0(plot_dir, "BAL-macrophages_IPF-geneset-enrichment.png")
+ggplot2::ggsave(fn, width = 11, height = 6)
 
-# Module scores ================================================================
+# Module scores
 
 # 1. UMAP embedding with cell-based scores
-idsets <- list()
-for (i in names(genesets)) {
-  print(i)
-  idsets[[i]] <- na.omit(
-    features$ENSEMBL[match(genesets[[i]], features$SYMBOL)]
-  )
-}
-idsets <- idsets[which(sapply(idsets, length) > 0)]
-
 object@meta.data <- object@meta.data[, which(
   !stringr::str_detect(string = names(object@meta.data), pattern = "geneset")
 )]
 
 object <- Seurat::AddModuleScore(
   object   = object, 
-  features = idsets, 
+  features = genesets, 
   name     = "geneset",
   assay    = "RNA", 
   seed     = 1993
@@ -2137,7 +2095,7 @@ object <- Seurat::AddModuleScore(
 scores <- object@meta.data[, which(
   stringr::str_detect(string = names(object@meta.data), pattern = "geneset")
 )]
-names(scores) <- names(idsets)
+names(scores) <- names(genesets)
 
 scores$x <- object@reductions$umap@cell.embeddings[, 1]
 scores$y <- object@reductions$umap@cell.embeddings[, 2]
@@ -2199,14 +2157,13 @@ ggplot2::ggplot(
   )
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_IPF-geneset-score-umap.png", width = 12, height = 6
-)
+fn <- paste0(plot_dir, "BAL-macrophages_IPF-geneset-score-umap.png")
+ggplot2::ggsave(fn, width = 12, height = 6, bg="white")
 
 # 2. Violin plots as cluster-based population summaries
 
 data <- scores
-data$Cluster <- object@meta.data$Cluster
+data$Cluster <- object@meta.data$Subtype
 
 data <- tidyr::gather(data, "Geneset", "Score", -Cluster, -x, -y)
 
@@ -2294,14 +2251,8 @@ ggplot2::ggplot(
   viridis::scale_fill_viridis(direction = -1, option = "A")
 
 # Save plot
-ggplot2::ggsave(
-  "BAL-macrophages_IPF-geneset-score-violins.png", width = 12, height = 6
-)
+fn <- paste0(plot_dir, "BAL-macrophages_IPF-geneset-score-violins.png")
+ggplot2::ggsave(fn, width = 12, height = 6)
 
-# ------------------------------------------------------------------------------
-# Save dataset to disk
-
-saveRDS(object, "BAL-macrophages.Rds")
-
-# end of document
-################################################################################
+# Save dataset -----------------------------------------------------------------
+saveRDS(object, out_bal_macrophages)
